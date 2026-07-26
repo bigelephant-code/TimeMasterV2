@@ -1,0 +1,68 @@
+{
+  "name": "litecal",
+  "version": "0.1.0",
+  "description": "轻日历 — 日历 / 待办 / 四象限 / 提醒 / 桌面小组件",
+  "author": "Ray",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "icon": "node scripts/make-icon.mjs",
+    "dist": "npm run icon && electron-vite build && electron-builder --win --x64",
+    "dist:dir": "npm run icon && electron-vite build && electron-builder --win --x64 --dir"
+  },
+  "dependencies": {
+    "lunar-javascript": "^1.7.3",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.1.0"
+  },
+  "build": {
+    "appId": "com.litecal.desktop",
+    "productName": "LiteCal",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "轻日历"
+    }
+  },
+  "allowScripts": {
+    "electron@43.2.0": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true
+  }
+}
