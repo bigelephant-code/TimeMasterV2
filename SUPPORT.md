@@ -4,10 +4,12 @@ TimeMaster V2 is a community-maintained, local-first open-source project. Suppor
 
 ## Supported version and platform
 
-- Current maintained release: `0.1.3`
-- Current unreleased source-development line: `0.1.4-dev` (not the installer currently offered by GitHub Releases)
+- Current maintained release: `0.1.4` (formal Windows x64 release, finalized 2026-08-12)
+- Preserved recovery/reference release: `0.1.3`
 - Primary platform: Windows x64
 - Current data directory: `%APPDATA%\timemaster-v2\`
+
+The formal 0.1.4 installer and the preserved 0.1.3 installer are not Authenticode-signed. Windows may show SmartScreen. This document describes supported versions; it does not claim that a 0.1.4 installer has already been uploaded to GitHub Releases.
 
 The historical LiteCal 0.1.0 source is retained as migration and architecture reference. It uses a different application identity and data directory. Do not merge the V1 and V2 directories while troubleshooting.
 
@@ -19,7 +21,7 @@ macOS, Linux, Windows on ARM, portable repackaging, modified builds, and third-p
 2. Exit the application from its tray menu, then restart it.
 3. If the problem concerns data, copy the complete `%APPDATA%\timemaster-v2\` directory to a safe location before changing or deleting anything. The Settings dialog can open the active data directory.
 4. Check existing Issues and the current [README](README.md), [ROADMAP](ROADMAP.md), and [privacy notes](PRIVACY.md).
-5. If you downloaded an installer, use the official GitHub Release and compare its published SHA-256 hash. The 0.1.3 installer is unsigned and may trigger Windows SmartScreen.
+5. If you downloaded an installer, use a trusted official release channel and compare its published SHA-256 hash. Both the 0.1.4 and preserved 0.1.3 installers are unsigned and may trigger Windows SmartScreen.
 
 ## Where to report
 
@@ -51,11 +53,11 @@ Weather requires access to `api.open-meteo.com` and `geocoding-api.open-meteo.co
 
 ### Data appears damaged or missing
 
-Stop and copy the entire data directory before experimenting. TimeMaster V2 may preserve unreadable JSON as `.broken-<timestamp>`, may recover the main data from `data.backup.json`, and 0.1.4-dev creates a non-overwriting `data.pre-v4-*` copy before migrating older data. These local files can contain the complete task and expense database; they are not off-device backups and must not be attached to a public report. Open an Issue with filenames and sanitized error text, not the file contents.
+Stop and copy the entire data directory before experimenting. TimeMaster V2 may preserve unreadable JSON as `.broken-<timestamp>`, may recover the main data from `data.backup.json`, and 0.1.4 creates a non-overwriting `data.pre-v4-*` copy before migrating older data. These local files can contain the complete task and expense database; they are not off-device backups and must not be attached to a public report. Open an Issue with filenames and sanitized error text, not the file contents.
 
 ### A disabled expense category still appears in history or exports
 
-This is expected in 0.1.4-dev source builds. Disabling a category prevents new entries from using it; it does not delete the stable category ID, the category definition, or any linked entries. History, totals, and Excel reconciliation continue to include those entries. Restore the category from category management to use it for new entries again, or rename it if the display label needs correction. The official 0.1.3 installer does not include this category-management interface.
+This is expected in the 0.1.4 release. Disabling a category prevents new entries from using it; it does not delete the stable category ID, the category definition, or any linked entries. History, totals, and Excel reconciliation continue to include those entries. Restore the category from category management to use it for new entries again, or rename it if the display label needs correction. The preserved 0.1.3 installer does not include this category-management interface.
 
 ### Uninstall did not remove records
 
@@ -63,7 +65,7 @@ This is expected. The installer deliberately preserves `%APPDATA%\timemaster-v2\
 
 ### Windows warns about the installer
 
-The recovered 0.1.3 installer is not Authenticode-signed, so Windows cannot verify a publisher identity and may display SmartScreen. Verify that the file came from the official repository release and compare its SHA-256 value. Do not bypass a warning for an installer from an unknown source.
+The formal 0.1.4 Windows x64 installer and the recovered 0.1.3 installer are not Authenticode-signed, so Windows cannot verify a publisher identity and may display SmartScreen. Verify the exact file's trusted source and compare its published SHA-256 value. Do not bypass a warning for an installer from an unknown source.
 
 ## Scope limits
 

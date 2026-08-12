@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-08-12
 
-Target: the TimeMaster V2 0.1.3 release and the unreleased 0.1.4-dev source on Windows x64
+Target: the TimeMaster V2 0.1.4 formal release and the preserved 0.1.3 release artifact on Windows x64
 
 This is a practical threat model for maintainers and reviewers. It describes the current design and residual risks; it is not a security certification.
 
@@ -47,7 +47,7 @@ The main window's Content Security Policy does not permit Open-Meteo. The widget
 
 | Threat | Current controls | Residual risk |
 |---|---|---|
-| Tampered or impersonated installer | Official release hashes and documented recovery provenance | 0.1.3 is not Authenticode-signed; a hash is useful only when obtained through a trusted channel |
+| Tampered or impersonated installer | Official release hashes and documented recovery provenance | Both the formal 0.1.4 Windows x64 installer and preserved 0.1.3 installer are not Authenticode-signed; a hash is useful only when obtained through a trusted channel |
 | Local malware or another user reading records | Windows user-profile directory boundaries | Application data and exported workbooks are not encrypted by TimeMaster V2; a process running as the user can read or change them |
 | Renderer compromise reaching native APIs | Renderer sandbox, context isolation, Node integration disabled, preload allowlist, explicit IPC handlers, CSP | A renderer exploit may still reach capabilities exposed by a vulnerable or overly permissive IPC path |
 | Malformed or corrupted data | Temporary-file-and-rename writes, `data.backup.json`, non-overwriting pre-v4 migration copies, malformed-file preservation, model normalization | Backups and primary data live on the same disk; migration copies are not automatically rotated and can increase local sensitive-data retention; none protects against disk loss or ransomware |
@@ -68,9 +68,11 @@ The application does not add task, goal, focus, or expense data to these request
 
 ## Data-loss considerations
 
-The ordinary recovery file and the automatically created `data.pre-v4-*` source snapshot are convenience copies, not a disaster-recovery system. The migration snapshot is deliberately not overwritten or automatically deleted. Before testing migrations, storage changes, or unreleased builds, copy the entire `%APPDATA%\timemaster-v2\` directory while the application is fully exited. Never test against the only copy of real user data.
+The ordinary recovery file and the automatically created `data.pre-v4-*` source snapshot are convenience copies, not a disaster-recovery system. The migration snapshot is deliberately not overwritten or automatically deleted. Before testing migrations, storage changes, or modified builds, copy the entire `%APPDATA%\timemaster-v2\` directory while the application is fully exited. Never test against the only copy of real user data.
 
-In 0.1.4-dev, disabling an expense category is an audit-preserving state change, not erasure. The category definition remains until the application data is removed; linked entries remain visible while retained, but the ledger automatically keeps only the newest 20,000 expense rows. Previously exported workbooks must be deleted separately. Renaming changes the label displayed for linked historical entries but does not rewrite their amounts, dates, notes, or IDs. The v3→v4 migration therefore requires explicit tests that preserve these relationships and keep legacy amounts visible.
+In 0.1.4, disabling an expense category is an audit-preserving state change, not erasure. The category definition remains until the application data is removed; linked entries remain visible while retained, but the ledger automatically keeps only the newest 20,000 expense rows. Previously exported workbooks must be deleted separately. Renaming changes the label displayed for linked historical entries but does not rewrite their amounts, dates, notes, or IDs. The v3→v4 migration therefore requires explicit tests that preserve these relationships and keep legacy amounts visible.
+
+The 0.1.4 formal Windows x64 installer is unsigned. This threat model describes its finalized behavior and risk boundary but does not claim that a GitHub Release asset has already been uploaded.
 
 Uninstall is configured with `deleteAppDataOnUninstall: false`. This reduces accidental loss but means uninstalling is not a privacy erase. Complete deletion requires removing the exact V2 user-data directory after exit. LiteCal V1 uses a different directory and must not be merged or deleted as part of V2 cleanup.
 

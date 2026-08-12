@@ -8,6 +8,7 @@ if (process.platform !== 'win32') {
 }
 
 const root = process.cwd()
+const expectedVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const executable = join(root, 'release', 'win-unpacked', 'TimeMasterV2.exe')
 if (!existsSync(executable)) {
   throw new Error('Packaged app is missing. Run npm run dist:dir first.')
@@ -40,6 +41,9 @@ try {
   }
   if (!result) throw new Error('Packaged app did not write its smoke-test result.')
   if (!result.ok) throw new Error(`Packaged smoke test failed: ${JSON.stringify(result)}`)
+  if (result.version !== expectedVersion) {
+    throw new Error(`Packaged app version mismatch: expected ${expectedVersion}, received ${result.version}.`)
+  }
   if (captureDir) {
     for (const name of ['expense-overview.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-ledger.png']) {
       const imagePath = join(captureDir, name)
