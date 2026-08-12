@@ -1,27 +1,42 @@
 # Roadmap
 
-TimeMaster V2 is maintained as a local-first Windows application. The roadmap prioritizes source clarity, data safety, and reproducible releases over rapid feature expansion.
+TimeMaster V2 是一款本地优先 Windows 应用。路线图优先考虑源码可维护性、数据安全和诚实的发布来源，而不是快速堆叠功能。项目仍处于早期阶段，不声称已有广泛社区采用。
 
-## Current: make 0.1.3 reproducible
+## 已完成：建立可信基线
 
-- Preserve the verified 0.1.3 runtime and installer hashes.
-- Keep product identity and `%APPDATA%\timemaster-v2\` compatibility stable.
-- Validate required runtime files and JavaScript syntax in CI.
-- Publish a tagged 0.1.3 release with checksums and known limitations.
+- [x] 保存原始 0.1.3 安装包 SHA-256、内含 ASAR 哈希和 Authenticode 未签名状态。
+- [x] 将从 0.1.3 `app.asar` 提取的 10 个文件作为不可变 `runtime/` 黄金参考，并加入逐文件哈希验证。
+- [x] 用 `v0.1.3` 固定原始所有者产物和历史运行时边界。
+- [x] 将 source-equivalent 重建放入 `src/`，接入 `electron-vite`，使当前开发线可审查、可编辑、可构建。
+- [x] 把 LiteCal 0.1.0 历史模块化源码移入 `legacy/litecal-0.1.0/`，避免与当前构建混淆。
+- [x] 添加 IPC 契约、窗口安全选项、黄金参考及生产构建验证。
+- [x] 添加使用隔离数据目录的 Windows 完整目录包 smoke test，验证主窗口、小组件、sandboxed preload 和 IPC。
+- [x] 添加隐私说明、威胁模型、支持指南、第三方许可证和脱敏演示截图。
+- [x] 明确 0.1.3 安装包未签名及 Windows SmartScreen 风险。
 
-## Next: restore modular source
+## 当前：0.1.4-dev 可维护性
 
-- Split the Electron main process into storage, backup, reminders, export, IPC, and window modules.
-- Restore the renderer to Vue single-file components without changing user-visible behavior.
-- Add fixtures and migration tests for data model version 3.
-- Test atomic writes, damaged-file preservation, and backup recovery.
-- Test expense-ledger export and focus-session state transitions.
+- [ ] 将 Electron 主进程拆分为存储、备份、提醒、导出、IPC 和窗口模块。
+- [ ] 把编译后的 renderer 逐步恢复为 Vue 单文件组件和 composable，同时保持可观察行为。
+- [ ] 为数据模型版本 3 添加脱敏 fixture 和迁移测试。
+- [ ] 测试原子写入、损坏文件留档、备份恢复和卸载后数据保留。
+- [ ] 测试费用台账导出和专注状态转换。
 
-## Later: community-ready product work
+适合创建真实 GitHub Issue 的候选：
 
-- Add application data import/export and a documented backup format.
-- Improve keyboard navigation, accessibility, and high-DPI behavior.
-- Separate Chinese calendar support from translatable interface strings.
-- Add automated Windows installer smoke tests and signed release artifacts.
+- `refactor: split main-process storage and backup services`
+- `test: add data-model-v3 migration fixtures`
+- `test: cover focus-session state transitions`
+- `test: verify expense workbook export`
+- `refactor: restore renderer shell as Vue SFCs`
 
-Scope proposals and implementation pull requests are welcome. Please open an issue before large architectural changes so data compatibility and migration behavior can be reviewed first.
+## 后续：社区可用性与发布安全
+
+- [ ] 添加应用内数据导入/导出和版本化备份格式文档。
+- [ ] 改善键盘导航、可访问性和高 DPI 行为。
+- [ ] 将中国日历能力与可翻译界面字符串分离。
+- [ ] 启用依赖更新与安全扫描，并及时处理可执行的结果。
+- [ ] 为未来发布配置代码签名；在此之前持续明确未签名状态。
+- [ ] 在有真实用户反馈后，用可核验的 Issue、修复和发布记录维护兼容性承诺。
+
+大型架构或数据格式变更请先开 Issue，以便先审查兼容性、迁移和回滚方案。不要为了制造活跃度创建重复、虚构或无具体范围的问题。
