@@ -17,7 +17,8 @@ be the lost original source tree:
   be recovered byte for byte.
 - Vue and `lunar-javascript` are declared at their identified exact versions for
   dependency auditing and license provenance; the reference renderer snapshot
-  already contains their bundled runtime code.
+  already contains their bundled runtime code. Those declarations must not be
+  updated independently of the embedded code.
 
 The immutable comparison copy remains in `runtime/` and is protected by
 `docs/runtime-0.1.3.sha256`. The next maintenance milestone is to split this

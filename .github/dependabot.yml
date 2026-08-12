@@ -16,6 +16,10 @@ updates:
           - minor
           - patch
     ignore:
+      # The recovered renderer embeds these exact runtimes and does not import
+      # them from npm. Revisit after the renderer is restored to source modules.
+      - dependency-name: vue
+      - dependency-name: lunar-javascript
       # electron-vite 5 currently declares support through Vite 7 only.
       - dependency-name: vite
         update-types:

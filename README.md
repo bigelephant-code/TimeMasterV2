@@ -2,15 +2,23 @@
 
 [![License: MIT](https://img.shields.io/github/license/bigelephant-code/TimeMasterV2)](LICENSE)
 [![CI](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml/badge.svg)](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml)
+[![CodeQL](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/codeql.yml/badge.svg)](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/codeql.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/bigelephant-code/TimeMasterV2?display_name=tag)](https://github.com/bigelephant-code/TimeMasterV2/releases)
 
 [English](README.en.md) | 简体中文
 
 时间大师 V2 是一个面向 Windows 的本地优先时间管理工具，把日历、待办、艾森豪威尔四象限、专注计时、主任务、费用台账和桌面小组件放在同一个工作台中。
 
+它适合希望在一个无需账号、默认不上传个人任务数据的 Windows 工作区中，同时看清“今天做什么、先做什么、投入了多久、长期目标进度和项目支出”的用户。
+
+<p align="center">
+  <img src="docs/images/widget.png" width="420" alt="时间大师 V2 桌面小组件，使用虚构演示数据">
+</p>
+<p align="center"><sub>桌面小组件集中展示日期、专注、主任务、费用与四象限；截图使用虚构演示数据。</sub></p>
+
 [![从 GitHub Releases 下载](https://img.shields.io/badge/下载-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> 发布说明：`v0.1.3` 保存的是项目所有者制作的原始 Windows 安装包，以及从该安装包提取并按哈希锁定的不可变运行时参考。安装包未经过 Authenticode 签名，Windows 可能显示 SmartScreen 警告。当前 `main` 是 **0.1.4-dev** 开发线，使用从该所有者产物重建的“源代码等价实现（source-equivalent reconstruction）”作为可编辑、可构建输入；它不是丢失的原始源码，也不保证构建结果与 0.1.3 逐字节一致。
+> **版本与来源：** `v0.1.3` 保留项目所有者制作的原始、未签名 Windows 安装包。当前 `main` 是从该产物重建的可编辑、可构建 `0.1.4-dev` **source-equivalent reconstruction**；它不是丢失的原始 Vue 源码，也不保证与 0.1.3 逐字节一致。详见 [恢复记录](docs/RECOVERY.md)。
 
 ## 功能概览
 
@@ -33,7 +41,7 @@
 | 四象限 | 费用台账 |
 | ![时间大师四象限页面](docs/images/matrix.png) | ![时间大师费用台账页面](docs/images/expenses.png) |
 
-以上截图来自隔离的演示环境，任务名称、金额、日期和其他内容均为虚构脱敏数据，不代表真实用户或真实采用情况。
+包括首屏小组件在内的所有截图均来自隔离演示环境；任务名称、金额、日期和其他内容均为虚构脱敏数据，不代表真实用户或真实采用情况。
 
 ## 隐私、安全与支持
 
@@ -41,6 +49,7 @@
 - 应用没有账号体系、广告、会员、分析或遥测上报。天气是 0.1.3 唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。
 - 主窗口和小组件启用 Electron renderer sandbox 与 `contextIsolation`、关闭 Node 集成，并通过显式 preload/IPC 白名单访问原生能力。
 - 详细数据流、删除方式和联网边界见 [隐私说明](PRIVACY.md)；安全假设与剩余风险见 [威胁模型](docs/THREAT_MODEL.md)；使用帮助见 [支持说明](SUPPORT.md)；漏洞请按 [安全政策](SECURITY.md) 私下报告。
+- 默认分支由 Windows CI 和 CodeQL 自动检查；Dependabot 每月检查 npm 与 GitHub Actions 更新。自动检查不能替代人工审查，也不构成安全保证。
 
 这是一款本地优先软件，不代表数据天然安全：应用数据和导出的工作簿未由 TimeMaster V2 加密，本机恶意软件或具有同等用户权限的进程仍可能读取它们。
 
