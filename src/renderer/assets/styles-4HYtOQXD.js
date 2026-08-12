@@ -15576,7 +15576,7 @@ function requireLunar() {
             left = left.substring(0, size - n);
           }
           size = left.length;
-          while (size - keySize !== left.lastIndexOf(key) && size >= _SIZE) {
+          while (size >= _SIZE && (size < keySize || size - keySize !== left.lastIndexOf(key))) {
             left = left.substring(0, size - _SIZE);
             size = left.length;
           }
@@ -15602,7 +15602,7 @@ function requireLunar() {
           }
           var size = s.length;
           var keySize = key.length;
-          while (size - keySize === s.lastIndexOf(key)) {
+          while (size >= keySize && size - keySize === s.lastIndexOf(key)) {
             l.push(_buildHolidayBackward(s));
             s = s.substring(0, size - _SIZE);
             size = s.length;

@@ -1,0 +1,5 @@
+name: TimeMaster V2 CodeQL configuration
+
+paths-ignore:
+  - runtime/**
+  - legacy/**

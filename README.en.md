@@ -62,7 +62,7 @@ A matching hash establishes equality with the published artifact; it does not re
 
 ## Run and verify from source
 
-Requirements: Windows 10/11 and Node.js 20 or newer.
+Requirements: Windows 10/11 and Node.js 22.12 or newer.
 
 ```powershell
 git clone https://github.com/bigelephant-code/TimeMasterV2.git

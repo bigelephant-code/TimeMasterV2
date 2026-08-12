@@ -62,7 +62,7 @@ Get-FileHash .\TimeMasterV2-Setup-0.1.3.exe -Algorithm SHA256
 
 ## 从源码运行与验证
 
-要求：Windows 10/11、Node.js 20 或更高版本。
+要求：Windows 10/11、Node.js 22.12 或更高版本。
 
 ```powershell
 git clone https://github.com/bigelephant-code/TimeMasterV2.git

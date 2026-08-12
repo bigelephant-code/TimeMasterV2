@@ -19,7 +19,7 @@
 
 ## 本地验证
 
-要求：Windows 10/11、Node.js 20 或更高版本。
+要求：Windows 10/11、Node.js 22.12 或更高版本。
 
 ```powershell
 npm ci

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 const root = process.cwd()
 const main = readFileSync(join(root, 'src', 'main', 'index.js'), 'utf8')
 const preload = readFileSync(join(root, 'src', 'preload', 'index.js'), 'utf8')
+const bundledRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'styles-4HYtOQXD.js'), 'utf8')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 const matches = (text, pattern) => [...text.matchAll(pattern)].map((match) => match[1])
@@ -38,4 +39,9 @@ test('security and product identity invariants stay explicit', () => {
   assert.match(main, /setWindowOpenHandler\(\(\) => \(\{ action: "deny" \}\)\)/)
   assert.match(main, /Rejected IPC from an untrusted sender/)
   assert.match(main, /--timemaster-smoke-test/)
+})
+
+test('bundled lunar suffix checks reject lastIndexOf minus-one false positives', () => {
+  assert.match(bundledRenderer, /size >= _SIZE && \(size < keySize \|\| size - keySize !== left\.lastIndexOf\(key\)\)/)
+  assert.match(bundledRenderer, /size >= keySize && size - keySize === s\.lastIndexOf\(key\)/)
 })

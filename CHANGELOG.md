@@ -9,6 +9,7 @@
 - 添加从 `src/` 到 `out/` 的 `electron-vite` 构建链和构建产物验证。
 - 添加 0.1.3 黄金参考哈希、preload/IPC 契约和窗口安全选项测试。
 - 为主窗口和小组件启用 Electron renderer sandbox，并增加使用隔离数据目录的打包应用 smoke test。
+- 修复恢复出的日历 bundle 中两处错误的后缀边界判断，并将开发环境最低版本与 Electron 43 对齐到 Node.js 22.12。
 - 添加隐私说明、威胁模型、支持指南、第三方完整许可证和使用虚构数据的脱敏截图。
 
 ### Changed
