@@ -5,6 +5,7 @@ TimeMaster V2 is a community-maintained, local-first open-source project. Suppor
 ## Supported version and platform
 
 - Current maintained release: `0.1.3`
+- Current unreleased source-development line: `0.1.4-dev` (not the installer currently offered by GitHub Releases)
 - Primary platform: Windows x64
 - Current data directory: `%APPDATA%\timemaster-v2\`
 
@@ -50,7 +51,11 @@ Weather requires access to `api.open-meteo.com` and `geocoding-api.open-meteo.co
 
 ### Data appears damaged or missing
 
-Stop and copy the entire data directory before experimenting. TimeMaster V2 may preserve unreadable JSON as `.broken-<timestamp>` and may recover the main data from `data.backup.json`. Those files are not guaranteed historical backups and should not be repeatedly overwritten during diagnosis. Open an Issue with filenames and sanitized error text, not the file contents.
+Stop and copy the entire data directory before experimenting. TimeMaster V2 may preserve unreadable JSON as `.broken-<timestamp>`, may recover the main data from `data.backup.json`, and 0.1.4-dev creates a non-overwriting `data.pre-v4-*` copy before migrating older data. These local files can contain the complete task and expense database; they are not off-device backups and must not be attached to a public report. Open an Issue with filenames and sanitized error text, not the file contents.
+
+### A disabled expense category still appears in history or exports
+
+This is expected in 0.1.4-dev source builds. Disabling a category prevents new entries from using it; it does not delete the stable category ID, the category definition, or any linked entries. History, totals, and Excel reconciliation continue to include those entries. Restore the category from category management to use it for new entries again, or rename it if the display label needs correction. The official 0.1.3 installer does not include this category-management interface.
 
 ### Uninstall did not remove records
 

@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
 if (process.platform !== 'win32') {
@@ -16,10 +16,19 @@ if (!existsSync(executable)) {
 const isolatedAppData = mkdtempSync(join(tmpdir(), 'timemaster-smoke-'))
 mkdirSync(isolatedAppData, { recursive: true })
 const resultFile = join(isolatedAppData, 'smoke-result.json')
+const captureValue = process.argv.find((arg) => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
+const captureDir = captureValue ? resolve(root, captureValue) : null
+if (captureDir && !isAbsolute(captureDir)) throw new Error('Visual smoke capture directory must resolve to an absolute path.')
+if (captureDir) mkdirSync(captureDir, { recursive: true })
 
 try {
   const child = spawnSync(executable, ['--timemaster-smoke-test'], {
-    env: { ...process.env, TIMEMASTER_SMOKE_USER_DATA: isolatedAppData, ELECTRON_ENABLE_LOGGING: '1' },
+    env: {
+      ...process.env,
+      TIMEMASTER_SMOKE_USER_DATA: isolatedAppData,
+      ...(captureDir ? { TIMEMASTER_SMOKE_CAPTURE_DIR: captureDir } : {}),
+      ELECTRON_ENABLE_LOGGING: '1'
+    },
     encoding: 'utf8',
     timeout: 30_000,
     windowsHide: true
@@ -31,6 +40,14 @@ try {
   }
   if (!result) throw new Error('Packaged app did not write its smoke-test result.')
   if (!result.ok) throw new Error(`Packaged smoke test failed: ${JSON.stringify(result)}`)
+  if (captureDir) {
+    for (const name of ['expense-overview.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-ledger.png']) {
+      const imagePath = join(captureDir, name)
+      if (!existsSync(imagePath) || statSync(imagePath).size < 1_000) {
+        throw new Error(`Visual smoke capture is missing or empty: ${name}`)
+      }
+    }
+  }
   console.log(`Packaged app smoke test passed (version ${result.version}, main and widget renderer/IPC verified).`)
 } finally {
   const expectedPrefix = join(tmpdir(), 'timemaster-smoke-')

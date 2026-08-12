@@ -34,7 +34,13 @@ const api = {
     update: (id, patch) => electron.ipcRenderer.invoke("expense:update", id, patch),
     remove: (id) => electron.ipcRenderer.invoke("expense:remove", id),
     clearDay: (goalId, date) => electron.ipcRenderer.invoke("expense:clearDay", goalId, date),
-    exportExcel: (input) => electron.ipcRenderer.invoke("expense:exportExcel", input)
+    exportExcel: (input) => electron.ipcRenderer.invoke("expense:exportExcel", input),
+    categories: {
+      add: (goalId, input) => electron.ipcRenderer.invoke("expenseCategory:add", goalId, input),
+      rename: (goalId, categoryId, name) => electron.ipcRenderer.invoke("expenseCategory:rename", goalId, categoryId, name),
+      archive: (goalId, categoryId) => electron.ipcRenderer.invoke("expenseCategory:archive", goalId, categoryId),
+      restore: (goalId, categoryId) => electron.ipcRenderer.invoke("expenseCategory:restore", goalId, categoryId)
+    }
   },
   focus: {
     setDuration: (minutes) => electron.ipcRenderer.invoke("focus:setDuration", minutes),

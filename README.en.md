@@ -33,6 +33,20 @@ It is designed for people who want one account-free Windows workspace to answer 
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
 
+### In development on 0.1.4-dev (not yet released)
+
+> GitHub Releases currently provides the `v0.1.3` installer. The capabilities below exist only on the current source-development line and are not part of the 0.1.3 installer.
+
+- Each expense ledger can independently add, rename, disable, and restore operating-expense categories. The separate goods/COGS category remains a fixed accounting group.
+- Expense entries reference stable category IDs. Renaming or disabling a category does not rewrite, move, or delete existing entries; disabled categories remain available to history, totals, and Excel exports.
+- Upgrading from 0.1.3 migrates existing categories and custom names from data model v3 to v4 without changing expense amounts, dates, notes, or category IDs.
+- Excel reconciliation uses stable category IDs and the actual category count to generate category totals and check formulas dynamically, so renaming a category does not change historical amount attribution.
+
+<p align="center">
+  <img src="docs/images/expense-categories.png" width="760" alt="The 0.1.4-dev expense-category manager with fictional demo data">
+</p>
+<p align="center"><sub>Packaged-app visual QA for the 0.1.4-dev category manager, captured in an isolated environment with fictional data.</sub></p>
+
 ## Screenshots
 
 | Calendar | Tasks |
@@ -46,7 +60,7 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather is the only intentionally network-backed feature in 0.1.3; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather is the only intentionally network-backed feature in both the 0.1.3 release and the current 0.1.4-dev source; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. The 0.1.4-dev expense-category work adds no network destination or third-party data sharing.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.

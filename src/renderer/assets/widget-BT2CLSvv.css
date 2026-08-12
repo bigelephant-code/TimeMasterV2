@@ -1619,6 +1619,12 @@ to {
 .wx-led-head.cogs b {
   color: #ff8a5c;
 }
+.wx-led-head.legacy b {
+  color: var(--text-dim);
+}
+.wx-led-head.legacy i {
+  color: var(--text-dim);
+}
 
 /* 周期行：本期标签 · 笔数 · 两个环比 */
 .wx-goal.ledger .wx-goal-sub {
@@ -1696,15 +1702,19 @@ to {
   color: color-mix(in srgb, var(--text) 42%, var(--text-faint));
 }
 
-/* 七个类别格子。这是"随手就能填"的全部入口，必须常驻、必须一行放得下 */
+/* 当前可用类别格子。这是“随手就能填”的入口，需保持紧凑且可换行。 */
 .wx-led-cats {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
   align-items: center;
   gap: 3px;
+  max-height: 80px;
   margin-bottom: 5px;
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .wx-led-cat {
-  flex: 1 1 0;
   min-width: 0;
   padding: 5px 0 6px;
   border-radius: 6px;
@@ -1729,15 +1739,16 @@ to {
   color: var(--text);
   font-weight: 700;
 }
-/* 货款跟六项费用之间留一道缝：两本账，别让人以为是并列的第七项费用 */
+/* 货款跟期间费用之间留一道缝：两种口径，别让人误以为是普通并列类别。 */
 .wx-led-split {
-  flex: 0 0 1px;
-  align-self: stretch;
-  margin: 2px 2px;
+  grid-column: 1 / -1;
+  height: 1px;
+  align-self: auto;
+  margin: 1px 2px;
   background: var(--border);
 }
 .wx-led-cat.cogs {
-  flex: 1.15 1 0;
+  grid-column: 1 / -1;
 }
 
 /* 录入行：日期徽标 + 金额 + 确认。回车提交，失焦不提交 */
@@ -1832,7 +1843,7 @@ to {
 }
 
 /*
- * 六项费用排行。宽度按六项自己的最大值归一，跟货款完全隔离——
+ * 期间费用排行。宽度按类别内部最大值归一，跟货款完全隔离——
  * 这是"货款压扁其他项"那个问题的解法本身，别改成按总额归一。
  */
 .wx-led-rank {
@@ -1888,6 +1899,9 @@ to {
   font-weight: 640;
   letter-spacing: 0.25px;
   color: color-mix(in srgb, var(--text) 50%, var(--text-faint));
+}
+.wx-led-blank.legacy {
+  color: var(--text-dim);
 }
 
 /*
