@@ -2,11 +2,11 @@
 
 Last updated: 2026-08-12
 
-Applies to: TimeMaster V2 0.1.3
+Applies to: the TimeMaster V2 0.1.4 formal Windows x64 release and the preserved 0.1.3 release artifact. Version-specific behavior is identified below.
 
-TimeMaster V2 is a local-first Windows application. It has no account system and the 0.1.3 code does not include advertising, analytics, telemetry, crash reporting, or an automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expenses, settings, or exported workbooks.
+TimeMaster V2 is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. The 0.1.4 expense-category changes add no new network destination or third-party data sharing.
 
-This document describes the behavior of the official 0.1.3 source and release artifact. A modified build, operating system, network intermediary, or third-party distribution may behave differently.
+Current released behavior refers to 0.1.4; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.4 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
 
 ## Data stored on your computer
 
@@ -18,19 +18,28 @@ The application sets its user-data directory to:
 
 That directory can contain:
 
-- `data.json`: lists, tasks, goals, expense entries, focus sessions, and current focus state;
+- `data.json`: lists, tasks, goals, per-ledger expense-category definitions (including disabled categories), expense entries, focus sessions, and current focus state;
 - `settings.json`: appearance, window and widget settings, countdown settings, reminders, and related preferences;
 - `data.backup.json`: a local recovery copy of the main data file;
+- `data.pre-v4-<timestamp>[-n].json`: a non-overwriting full copy created before a pre-v4 data migration; it remains local and is not automatically rotated or deleted;
 - files ending in `.broken-<timestamp>` when an unreadable JSON file is preserved instead of overwritten;
 - Electron/Chromium storage, including the saved weather location and recent weather cache.
 
-Writes to the primary JSON files use a temporary file followed by a rename. The recovery file is local, is updated as the application saves, and is not an off-device or versioned backup.
+Writes to the primary JSON files use a temporary file followed by a rename. The ordinary recovery file is local and updated as the application saves. The one-time pre-v4 copy preserves the source data before migration, but neither kind is an off-device disaster-recovery backup.
 
 Expense workbooks are written only after you choose a destination in the Windows save dialog. Those `.xlsx` files are outside the application data directory and may contain personal or commercially sensitive information.
 
+Custom expense-category names are user-entered text and may reveal projects, suppliers, or cost structure. They are stored locally and may be included in exported workbooks.
+
+### Expense category retention in 0.1.4
+
+Each expense entry stores a stable category ID. Renaming a category changes the label shown for past and future entries, but does not change entry amounts, dates, notes, record IDs, or category IDs.
+
+“Disable” is not deletion. It removes the category from new-entry choices while retaining the category definition and currently retained linked entries for history, totals, recovery, and Excel export. Restoring the category makes it available for new entries again. The 0.1.4 interface has no hard-delete operation for a category: deleting linked expense entries removes those entries, but the disabled category definition remains until the application data itself is removed as described below. Expense-entry retention is also subject to the built-in limit documented below.
+
 ## Network activity
 
-Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in 0.1.3 that intentionally calls an Internet service.
+Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in both the 0.1.3 and 0.1.4 releases that intentionally calls an Internet service.
 
 ### City search
 
@@ -62,13 +71,19 @@ Windows, Chromium, hardware, and network providers may participate in determinin
 
 ## What is not sent by the application
 
-The 0.1.3 code does not send task titles, task notes, reminders, focus sessions, goals, expense entries, settings, or exported workbooks to Open-Meteo or to the project maintainer. It does not contain a login, synchronization service, analytics SDK, advertising SDK, or remote crash collector.
+Neither the 0.1.3 release code nor the 0.1.4 release code sends task titles, task notes, reminders, focus sessions, goals, expense-category names, expense entries, settings, or exported workbooks to Open-Meteo or to the project maintainer. They do not contain a login, synchronization service, analytics SDK, advertising SDK, or remote crash collector.
 
 This statement does not prevent Windows, security software, DNS providers, proxies, or other software on the computer or network from recording their own activity.
 
 ## Retention, backup, and deletion
 
-Local records remain until you edit them in the application or remove the application data yourself. Uninstalling TimeMaster V2 does **not** delete `%APPDATA%\timemaster-v2\`; this is deliberate so an uninstall or upgrade does not silently erase user data.
+Local records generally remain until you edit them in the application or remove the application data yourself, subject to these built-in history limits:
+
+- expense entries keep the most recent 20,000 rows by accounting date and registration time;
+- completed focus sessions keep the most recent 2,000 rows;
+- each goal keeps the most recent 100 progress-history rows and 11 completed period summaries.
+
+When a limit is exceeded, the application automatically removes the oldest rows in that collection. These limits mean the local ledger is not an indefinite audit archive; export or separately back up records that must be retained longer. Migration copies named `data.pre-v4-*` are not automatically rotated or deleted. Uninstalling TimeMaster V2 does **not** delete `%APPDATA%\timemaster-v2\`; this is deliberate so an uninstall or upgrade does not silently erase user data.
 
 To remove all application-held data:
 
@@ -78,7 +93,7 @@ To remove all application-held data:
 4. In File Explorer, open `%APPDATA%` and delete only the `timemaster-v2` directory.
 5. Separately delete any exported `.xlsx` files from the locations you selected.
 
-There is no “erase all data” button in 0.1.3. Removing the directory is irreversible unless you made another copy. The application cannot delete records retained independently by Open-Meteo, Windows, network providers, GitHub, or other third parties.
+There is no “erase all data” button in 0.1.3 or 0.1.4. Removing the directory also removes ordinary backups and `data.pre-v4-*` migration copies, and is irreversible unless you made another copy. The application cannot delete records retained independently by Open-Meteo, Windows, network providers, GitHub, or other third parties.
 
 ## GitHub interactions
 
@@ -86,7 +101,7 @@ If you open an Issue, Discussion, pull request, or security report, the informat
 
 ## Release integrity
 
-The recovered 0.1.3 installer is not Authenticode-signed. Windows therefore cannot verify a publisher identity for it and may show a SmartScreen warning. Obtain releases from this repository's GitHub Releases page and compare the published SHA-256 value before running an installer. A matching hash confirms file equality with the published artifact; it does not replace code signing or guarantee that a program is harmless.
+The formal 0.1.4 Windows x64 installer and the recovered 0.1.3 installer are not Authenticode-signed. Windows therefore cannot verify a publisher identity for them and may show a SmartScreen warning. Obtain an installer through a trusted official channel and compare the SHA-256 published alongside that exact artifact before running it. A matching hash confirms file equality with the referenced artifact; it does not replace code signing or guarantee that a program is harmless. This notice does not claim that a 0.1.4 installer has already been uploaded to GitHub Releases.
 
 ## Questions
 

@@ -195,7 +195,7 @@ const _hoisted_44 = { class: "wx-goal-name" };
 const _hoisted_45 = { class: "wx-led-heads" };
 const _hoisted_46 = {
   class: "wx-led-head opex",
-  title: "六项期间费用小计"
+  title: "期间费用类别小计"
 };
 const _hoisted_47 = ["title"];
 const _hoisted_48 = { class: "wx-goal-sub" };
@@ -1016,7 +1016,7 @@ const _sfc_main = {
     const goalRowTitle = (g) => {
       if (isLedger(g)) {
         const s = ledgerStats.value.get(g.id);
-        return `${g.name}　${goalPeriodTitle(g)}　${OPEX_LABEL} ${formatGoalNumber(s?.cur.opex || 0)}${g.unit} · ${cogsLabel(g)} ${formatGoalNumber(s?.cur.cogs || 0)}${g.unit}　点类别记一笔 · 右键修改`;
+        return `${g.name}　${goalPeriodTitle(g)}　${OPEX_LABEL} ${formatGoalNumber(s?.cur.opex || 0)}${g.unit} · 遗留/未分类 ${formatGoalNumber(s?.cur.unclassified || 0)}${g.unit} · ${cogsLabel(g)} ${formatGoalNumber(s?.cur.cogs || 0)}${g.unit}　点类别记一笔 · 右键修改`;
       }
       return isAccum(g) ? `${g.name}　${goalPeriodTitle(g)} ${formatGoalNumber(g.periodTotal || 0)}${g.unit}　+ 记一笔 · − 冲减 · 右键修改` : `${g.name}　${g.current} / ${g.target}${g.unit}　+ 加进度 · − 减进度 · 右键修改`;
     };
@@ -1214,8 +1214,8 @@ const _sfc_main = {
         const grouped = groupByPeriod(rows2, g.period);
         const key = periodKeyOfYmd(g.period, day);
         const prevKey = periodKeyOfYmd(g.period, stepPeriod(g.period, day, -1));
-        const cur = summarize(grouped.get(key) || []);
-        const prev = summarize(grouped.get(prevKey) || []);
+        const cur = summarize(grouped.get(key) || [], g);
+        const prev = summarize(grouped.get(prevKey) || [], g);
         map.set(g.id, {
           key,
           cur,
@@ -1265,6 +1265,16 @@ const _sfc_main = {
       ledgerAmount.value = "";
       ledgerNote.value = "";
     }
+    watch(
+      () => state.goals,
+      () => {
+        if (!ledgerFor.value || !ledgerCat.value) return;
+        const goal = state.goals.find((item) => item.id === ledgerFor.value && item.mode === "ledger");
+        const category = goal ? catOf(goal, ledgerCat.value) : null;
+        if (!category || category.archivedAt) closeLedger();
+      },
+      { deep: true }
+    );
     async function submitLedger(goal) {
       const amount = Number(ledgerAmount.value);
       const cat = ledgerCat.value;
@@ -1594,6 +1604,14 @@ const _sfc_main = {
                           _cache[83] || (_cache[83] = createBaseVNode("i", null, "费用", -1)),
                           createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(statsOf(g)?.cur.opex || 0)), 1)
                         ]),
+                        statsOf(g)?.cur.unclassified ? (openBlock(), createElementBlock("span", {
+                          key: 0,
+                          class: "wx-led-head legacy",
+                          title: "迁移或恢复出的遗留/未分类记录"
+                        }, [
+                          createBaseVNode("i", null, "遗留"),
+                          createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(statsOf(g).cur.unclassified)), 1)
+                        ])) : createCommentVNode("", true),
                         createBaseVNode("span", {
                           class: "wx-led-head cogs",
                           title: `${unref(cogsLabel)(g)}单独一本账`
@@ -1634,7 +1652,7 @@ const _sfc_main = {
                       ])
                     ]),
                     createBaseVNode("div", _hoisted_56, [
-                      (openBlock(true), createElementBlock(Fragment, null, renderList(unref(opexCatsOf)(g), (c) => {
+                      (openBlock(true), createElementBlock(Fragment, null, renderList(unref(opexCatsOf)(g).filter((c) => !c.archivedAt), (c) => {
                         return openBlock(), createElementBlock("button", {
                           key: c.id,
                           class: normalizeClass(["wx-led-cat", { on: ledgerFor.value === g.id && ledgerCat.value === c.id }]),
@@ -1649,7 +1667,7 @@ const _sfc_main = {
                         class: "wx-led-split",
                         "aria-hidden": "true"
                       }, null, -1)),
-                      (openBlock(true), createElementBlock(Fragment, null, renderList(unref(cogsCatsOf)(g), (c) => {
+                      (openBlock(true), createElementBlock(Fragment, null, renderList(unref(cogsCatsOf)(g).filter((c) => !c.archivedAt), (c) => {
                         return openBlock(), createElementBlock("button", {
                           key: c.id,
                           class: normalizeClass(["wx-led-cat cogs", { on: ledgerFor.value === g.id && ledgerCat.value === c.id }]),
@@ -1733,7 +1751,11 @@ const _sfc_main = {
                           createBaseVNode("span", _hoisted_69, toDisplayString(r.share) + "%", 1)
                         ]);
                       }), 128)),
-                      !(statsOf(g)?.ranking || []).length ? (openBlock(), createElementBlock("div", _hoisted_70, " 本期还没有费用，点上面的类别记第一笔 ")) : createCommentVNode("", true)
+                      !(statsOf(g)?.ranking || []).length && !statsOf(g)?.cur.unclassified ? (openBlock(), createElementBlock("div", _hoisted_70, " 本期还没有费用，点上面的类别记第一笔 ")) : createCommentVNode("", true),
+                      !(statsOf(g)?.ranking || []).length && statsOf(g)?.cur.unclassified ? (openBlock(), createElementBlock("div", {
+                        key: 1,
+                        class: "wx-led-blank legacy"
+                      }, "本期只有遗留/未分类记录，金额已在上方单独列示")) : createCommentVNode("", true)
                     ])
                   ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
                     createBaseVNode("div", _hoisted_71, [

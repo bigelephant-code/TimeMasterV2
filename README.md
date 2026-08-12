@@ -18,7 +18,7 @@
 
 [![从 GitHub Releases 下载](https://img.shields.io/badge/下载-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> **版本与来源：** `v0.1.3` 保留项目所有者制作的原始、未签名 Windows 安装包。当前 `main` 是从该产物重建的可编辑、可构建 `0.1.4-dev` **source-equivalent reconstruction**；它不是丢失的原始 Vue 源码，也不保证与 0.1.3 逐字节一致。详见 [恢复记录](docs/RECOVERY.md)。
+> **版本与来源：** `v0.1.3` 保留项目所有者制作的原始、未签名 Windows 安装包。`0.1.4` 是 2026-08-12 定版的 Windows x64 正式版，同样未经过 Authenticode 签名；它由从 0.1.3 产物重建的可编辑、可构建 **source-equivalent reconstruction** 构建，不是丢失的原始 Vue 源码，也不保证与 0.1.3 逐字节一致。安装包是否已经提供下载，以 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 页面实际附件为准。详见 [恢复记录](docs/RECOVERY.md)。
 
 ## 功能概览
 
@@ -33,6 +33,20 @@
 | 桌面小组件 | 日期、农历、天气、时间节点、专注、主任务和今日四象限 |
 | 本地数据 | JSON 原子写入、损坏文件留档、自动备份与恢复 |
 
+### 0.1.4 正式版（2026-08-12）
+
+> 以下能力属于 `0.1.4` Windows x64 正式版，不包含在原始 `0.1.3` 安装包中。0.1.4 安装包未签名，Windows 可能显示 SmartScreen 提示；本段描述版本内容，不代表安装包已经上传到 GitHub Release。
+
+- 每本费用台账可以独立新增、重命名、停用和恢复期间费用类别；“货款”单列仍保持固定口径。
+- 类别使用稳定编号关联流水。重命名或停用不会改写、移动或删除既有费用记录；停用类别仍保留在历史、汇总和 Excel 导出中。
+- 从 0.1.3 升级时，现有类别和自定义名称会从数据模型 v3 迁移到 v4，费用金额、日期、备注和类别编号保持不变。
+- Excel 对账按稳定类别编号和实际类别数量动态生成分类汇总与核对公式，类别改名不会改变历史金额归属。
+
+<p align="center">
+  <img src="docs/images/expense-categories.png" width="760" alt="0.1.4 记账类别管理界面，使用虚构演示数据">
+</p>
+<p align="center"><sub>0.1.4 类别管理实机验收图；来自隔离环境，内容均为虚构数据。</sub></p>
+
 ## 界面预览
 
 | 日历 | 待办 |
@@ -46,7 +60,7 @@
 ## 隐私、安全与支持
 
 - 待办、专注记录、主任务、费用台账和设置默认保存在本机 `%APPDATA%\timemaster-v2\`。
-- 应用没有账号体系、广告、会员、分析或遥测上报。天气是 0.1.3 唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。
+- 应用没有账号体系、广告、会员、分析或遥测上报。天气是 0.1.3 和 0.1.4 正式版中唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。0.1.4 的费用类别管理不增加联网目的地或第三方数据共享。
 - 主窗口和小组件启用 Electron renderer sandbox 与 `contextIsolation`、关闭 Node 集成，并通过显式 preload/IPC 白名单访问原生能力。
 - 详细数据流、删除方式和联网边界见 [隐私说明](PRIVACY.md)；安全假设与剩余风险见 [威胁模型](docs/THREAT_MODEL.md)；使用帮助见 [支持说明](SUPPORT.md)；漏洞请按 [安全政策](SECURITY.md) 私下报告。
 - 默认分支由 Windows CI 和 CodeQL 自动检查；Dependabot 每月检查 npm 与 GitHub Actions 更新。自动检查不能替代人工审查，也不构成安全保证。
@@ -55,13 +69,17 @@
 
 ## 安装包完整性
 
+`0.1.4` 的正式产物为 Windows x64 NSIS 安装包 `TimeMasterV2-Setup-0.1.4.exe`，**未经过 Authenticode 签名**。请只使用可信来源提供的实际安装包，并核对与该产物一同发布的 SHA-256；本 README 不以版本文字代替实际文件哈希，也不表示安装包已经上传到 GitHub Release。
+
+原始 0.1.3 产物继续作为恢复来源和不可变参考保留。其文件名与 SHA-256 如下：
+
 原始 `TimeMasterV2-Setup-0.1.3.exe` 的 SHA-256：
 
 ```text
 8EEF4DB7BDF2F8BA4911C97E9189232DA9D7D362034822E51A6D03DB333DE9E4
 ```
 
-该安装包 **未经过 Authenticode 签名**。只应从本仓库的 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 下载，并在运行前与 Release 中的校验文件核对：
+0.1.3 安装包也 **未经过 Authenticode 签名**。只应从本仓库的 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 下载，并在运行前与 Release 中的校验文件核对：
 
 ```powershell
 Get-FileHash .\TimeMasterV2-Setup-0.1.3.exe -Algorithm SHA256
@@ -95,7 +113,7 @@ npm run ensure:electron
 npm run dist
 ```
 
-新产物写入 `release/`。开发构建应使用新的开发版本号，不应覆盖或冒充原始 `v0.1.3` 产物。
+新产物写入 `release/`。`0.1.4` 正式产物使用独立版本号和文件名，不应覆盖或冒充原始 `v0.1.3` 产物。
 
 验证完整目录包的主窗口、小组件、sandboxed preload 和 IPC：
 
@@ -109,7 +127,7 @@ smoke test 使用显式隔离的临时 `userData` 与 session 目录，不读取
 ## 目录与版本边界
 
 ```text
-src/                       当前 0.1.4-dev 的可编辑、可构建 source-equivalent 输入
+src/                       0.1.4 的可编辑、可构建 source-equivalent 输入
 runtime/                   从原始 0.1.3 app.asar 提取的不可变黄金参考
 legacy/litecal-0.1.0/      历史 LiteCal 0.1.0 模块化源码，仅作迁移参考
 tests/                     IPC 与安全契约测试

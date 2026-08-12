@@ -6869,34 +6869,48 @@ function formatGoalNumber(value) {
   return rounded.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 }
 const EXPENSE_CATS = [
-  { id: "freight", name: "运杂费", short: "运杂", color: "#4c8dff", group: "opex" },
-  { id: "office", name: "办公费", short: "办公", color: "#3ecf8e", group: "opex" },
-  { id: "tax", name: "税费", short: "税费", color: "#ffb020", group: "opex" },
-  { id: "admin", name: "管理费", short: "管理", color: "#a78bfa", group: "opex" },
-  { id: "travel", name: "差旅费", short: "差旅", color: "#22d3ee", group: "opex" },
-  { id: "welfare", name: "福利费", short: "福利", color: "#f472b6", group: "opex" },
-  { id: "goods", name: "货款", short: "货款", color: "#ff7a45", group: "cogs" }
+  { id: "freight", name: "运杂费", short: "运杂", color: "#4c8dff", group: "opex", order: 0, builtin: true, archivedAt: null },
+  { id: "office", name: "办公费", short: "办公", color: "#3ecf8e", group: "opex", order: 1, builtin: true, archivedAt: null },
+  { id: "tax", name: "税费", short: "税费", color: "#ffb020", group: "opex", order: 2, builtin: true, archivedAt: null },
+  { id: "admin", name: "管理费", short: "管理", color: "#a78bfa", group: "opex", order: 3, builtin: true, archivedAt: null },
+  { id: "travel", name: "差旅费", short: "差旅", color: "#22d3ee", group: "opex", order: 4, builtin: true, archivedAt: null },
+  { id: "welfare", name: "福利费", short: "福利", color: "#f472b6", group: "opex", order: 5, builtin: true, archivedAt: null },
+  { id: "goods", name: "货款", short: "货款", color: "#ff7a45", group: "cogs", order: 6, builtin: true, archivedAt: null }
 ];
 const OPEX_CATS = EXPENSE_CATS.filter((c) => c.group === "opex");
 EXPENSE_CATS.filter((c) => c.group === "cogs");
 const CAT_BY_ID = new Map(EXPENSE_CATS.map((c) => [c.id, c]));
 const expenseCat = (id) => CAT_BY_ID.get(id) || null;
-const MAX_CAT_NAME = 10;
+const MAX_CAT_NAME = 12;
 function normalizeCatName(value) {
-  const s = String(value ?? "").trim().slice(0, MAX_CAT_NAME);
-  return s || null;
+  const value2 = String(value ?? "").normalize("NFKC").trim().replace(/\s+/g, " ");
+  return Array.from(value2).slice(0, MAX_CAT_NAME).join("") || null;
 }
-const shortOf = (name) => String(name).slice(0, 2);
+const shortOf = (name) => Array.from(String(name || "")).slice(0, 2).join("");
 function catsOf(goal) {
-  const custom = goal?.catNames;
-  if (!custom) return EXPENSE_CATS;
-  return EXPENSE_CATS.map((c) => {
-    const name = normalizeCatName(custom[c.id]);
-    return name && name !== c.name ? { ...c, name, short: shortOf(name) } : c;
+  if (!goal || goal.mode !== "ledger") return [];
+  const source = Array.isArray(goal.expenseCategories) ? goal.expenseCategories : EXPENSE_CATS.map((category) => {
+    const name = normalizeCatName(goal.catNames?.[category.id]) || category.name;
+    return { ...category, name, short: shortOf(name) };
   });
+  return source.map((category, index) => {
+    const fallback = CAT_BY_ID.get(category?.id);
+    const name = normalizeCatName(category?.name) || fallback?.name || "未命名分类";
+    return {
+      id: String(category?.id || ""),
+      name,
+      short: shortOf(name),
+      color: /^#[0-9a-f]{6}$/i.test(String(category?.color || "")) ? category.color : fallback?.color || "#7f8b9a",
+      group: ["opex", "cogs", "unclassified"].includes(category?.group) ? category.group : fallback?.group || "opex",
+      order: Number.isFinite(Number(category?.order)) ? Number(category.order) : index,
+      builtin: Boolean(category?.builtin || fallback),
+      archivedAt: Number(category?.archivedAt) > 0 ? Number(category.archivedAt) : null
+    };
+  }).filter((category) => category.id).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "zh-CN"));
 }
 const opexCatsOf = (goal) => catsOf(goal).filter((c) => c.group === "opex");
 const cogsCatsOf = (goal) => catsOf(goal).filter((c) => c.group === "cogs");
+const activeCatsOf = (goal) => catsOf(goal).filter((c) => !c.archivedAt);
 function catOf(goal, id) {
   return catsOf(goal).find((c) => c.id === id) || null;
 }
@@ -6980,25 +6994,40 @@ function recentPeriodKeys(period, count, anchor = todayYmd()) {
   return keys;
 }
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-function emptyTotals() {
-  const byCat = {};
-  for (const c of EXPENSE_CATS) byCat[c.id] = 0;
-  return { opex: 0, cogs: 0, total: 0, count: 0, byCat };
+function summaryCategories(goal = null) {
+  if (goal) return catsOf(goal);
+  const map = new Map(EXPENSE_CATS.map((category) => [category.id, category]));
+  for (const ledger of state?.goals || []) {
+    if (ledger.mode !== "ledger") continue;
+    for (const category of catsOf(ledger)) if (!map.has(category.id)) map.set(category.id, category);
+  }
+  return [...map.values()];
 }
-function summarize(entries = []) {
-  const out = emptyTotals();
+function emptyTotals(goal = null) {
+  const byCat = /* @__PURE__ */ Object.create(null);
+  for (const c of summaryCategories(goal)) byCat[c.id] = 0;
+  return { opex: 0, cogs: 0, unclassified: 0, total: 0, count: 0, byCat };
+}
+function summarize(entries = [], goal = null) {
+  const out = emptyTotals(goal);
+  const categoryMap = new Map(summaryCategories(goal).map((category) => [category.id, category]));
   for (const e of entries) {
-    const cat = CAT_BY_ID.get(e.cat);
-    if (!cat) continue;
     const amount = Number(e.amount) || 0;
-    out.byCat[cat.id] += amount;
-    if (cat.group === "cogs") out.cogs += amount;
-    else out.opex += amount;
     out.count += 1;
+    const cat = categoryMap.get(e.cat);
+    if (!cat) {
+      out.unclassified += amount;
+      continue;
+    }
+    out.byCat[cat.id] = (out.byCat[cat.id] || 0) + amount;
+    if (cat.group === "cogs") out.cogs += amount;
+    else if (cat.group === "opex") out.opex += amount;
+    else out.unclassified += amount;
   }
   out.opex = round2(out.opex);
   out.cogs = round2(out.cogs);
-  out.total = round2(out.opex + out.cogs);
+  out.unclassified = round2(out.unclassified);
+  out.total = round2(out.opex + out.cogs + out.unclassified);
   for (const id of Object.keys(out.byCat)) out.byCat[id] = round2(out.byCat[id]);
   return out;
 }
@@ -7023,11 +7052,18 @@ function groupByPeriod(entries = [], period = "month") {
   }
   return map;
 }
-function periodSeries(entries = [], period = "month", count = 12, anchor = todayYmd()) {
+function periodSeries(entries = [], period = "month", count = 12, anchor = todayYmd(), goal = null) {
   const grouped = groupByPeriod(entries, period);
   return recentPeriodKeys(period, count, anchor).map((key) => {
-    const sum = summarize(grouped.get(key) || []);
-    return { key, opex: sum.opex, cogs: sum.cogs, total: sum.total, count: sum.count };
+    const sum = summarize(grouped.get(key) || [], goal);
+    return {
+      key,
+      opex: sum.opex,
+      cogs: sum.cogs,
+      unclassified: sum.unclassified,
+      total: sum.total,
+      count: sum.count
+    };
   });
 }
 function opexRanking(totals, { includeZero = false, goal = null } = {}) {
@@ -7166,6 +7202,10 @@ const actions = {
   removeExpense: (id) => api.expenses.remove(id),
   clearLedgerDay: (goalId, date) => api.expenses.clearDay(goalId, date),
   exportExpensesExcel: (input) => api.expenses.exportExcel(input),
+  addExpenseCategory: (goalId, input) => api.expenses.categories.add(goalId, input),
+  renameExpenseCategory: (goalId, categoryId, name) => api.expenses.categories.rename(goalId, categoryId, name),
+  archiveExpenseCategory: (goalId, categoryId) => api.expenses.categories.archive(goalId, categoryId),
+  restoreExpenseCategory: (goalId, categoryId) => api.expenses.categories.restore(goalId, categoryId),
   setFocusDuration: (minutes) => api.focus.setDuration(minutes),
   startFocus: (minutes) => api.focus.start(minutes),
   pauseFocus: () => api.focus.pause(),

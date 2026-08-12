@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The released security baseline is `0.1.3`; active fixes are developed on the `0.1.4-dev` main branch. Historical LiteCal V1 source is retained for migration reference and is not an actively supported product line.
+The released security baseline is `0.1.4` for Windows x64, finalized on 2026-08-12. The 0.1.4 installer is not Authenticode-signed; the preserved 0.1.3 recovery artifact is also unsigned. Historical LiteCal V1 source is retained for migration reference and is not an actively supported product line. This policy describes version support and does not assert that a 0.1.4 installer has already been uploaded to GitHub Releases.
 
 ## Reporting a vulnerability
 
@@ -23,7 +23,7 @@ See [PRIVACY.md](PRIVACY.md) for data flows and [docs/THREAT_MODEL.md](docs/THRE
 
 ## 支持范围
 
-已发布的安全基线为 `0.1.3`；当前修复在 `0.1.4-dev` 主分支开发。历史 LiteCal V1 源码仅作为迁移参考，不属于积极维护的产品线。
+已发布的安全基线为 2026-08-12 定版的 Windows x64 `0.1.4`。0.1.4 安装包未经过 Authenticode 签名；保留用于恢复的 0.1.3 产物同样未签名。历史 LiteCal V1 源码仅作为迁移参考，不属于积极维护的产品线。本政策描述版本支持范围，不表示 0.1.4 安装包已经上传到 GitHub Releases。
 
 ## 报告漏洞
 

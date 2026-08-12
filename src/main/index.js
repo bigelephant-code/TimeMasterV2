@@ -7,6 +7,17 @@ const promises = require("node:fs/promises");
 const node_zlib = require("node:zlib");
 const node_url = require("node:url");
 const { normalizeTaskTime, taskStartTime, taskEndTime } = require("./task-time.js");
+const {
+  defaultExpenseCategories,
+  migrateExpenseCategories,
+  categoriesOf,
+  categoryOf,
+  addExpenseCategory: createExpenseCategory,
+  renameExpenseCategory: renameExpenseCategoryDefinition,
+  archiveExpenseCategory: archiveExpenseCategoryDefinition,
+  restoreExpenseCategory: restoreExpenseCategoryDefinition,
+  summarizeExpenseEntries
+} = require("./expense-categories.js");
 const SMOKE_TEST_FLAG = "--timemaster-smoke-test";
 const isSmokeTest = process.argv.includes(SMOKE_TEST_FLAG);
 function taskHasTime(todo) {
@@ -87,45 +98,15 @@ function periodKeyOf(period, at = Date.now()) {
       return `${y}-${pad(m + 1)}`;
   }
 }
-const EXPENSE_CATS = [
-  { id: "freight", name: "运杂费", short: "运杂", color: "#4c8dff", group: "opex" },
-  { id: "office", name: "办公费", short: "办公", color: "#3ecf8e", group: "opex" },
-  { id: "tax", name: "税费", short: "税费", color: "#ffb020", group: "opex" },
-  { id: "admin", name: "管理费", short: "管理", color: "#a78bfa", group: "opex" },
-  { id: "travel", name: "差旅费", short: "差旅", color: "#22d3ee", group: "opex" },
-  { id: "welfare", name: "福利费", short: "福利", color: "#f472b6", group: "opex" },
-  { id: "goods", name: "货款", short: "货款", color: "#ff7a45", group: "cogs" }
-];
-EXPENSE_CATS.filter((c) => c.group === "opex");
-EXPENSE_CATS.filter((c) => c.group === "cogs");
-const CAT_BY_ID = new Map(EXPENSE_CATS.map((c) => [c.id, c]));
-const normalizeExpenseCat = (value) => CAT_BY_ID.has(value) ? value : null;
-const MAX_CAT_NAME = 10;
-function normalizeCatName(value) {
-  const s = String(value ?? "").trim().slice(0, MAX_CAT_NAME);
-  return s || null;
-}
-function normalizeCatNames(input) {
-  const out = {};
-  if (!input || typeof input !== "object") return out;
-  for (const c of EXPENSE_CATS) {
-    const name = normalizeCatName(input[c.id]);
-    if (name && name !== c.name) out[c.id] = name;
-  }
-  return out;
-}
-const shortOf = (name) => String(name).slice(0, 2);
-function catsOf(goal) {
-  const custom = goal?.catNames;
-  if (!custom) return EXPENSE_CATS;
-  return EXPENSE_CATS.map((c) => {
-    const name = normalizeCatName(custom[c.id]);
-    return name && name !== c.name ? { ...c, name, short: shortOf(name) } : c;
-  });
-}
+const catsOf = categoriesOf;
+const normalizeExpenseCat = (goal, value) => {
+  const category = categoryOf(goal, value);
+  return category && !category.archivedAt ? category.id : null;
+};
 const cogsCatsOf = (goal) => catsOf(goal).filter((c) => c.group === "cogs");
 const OPEX_LABEL = "期间费用";
 const cogsLabel = (goal) => cogsCatsOf(goal)[0]?.name || "货款";
+const expenseCategoryGroupLabel = (category) => category?.group === "cogs" ? "货款单列" : category?.group === "opex" ? OPEX_LABEL : "遗留/未分类";
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const normalizeYmd = (value) => YMD_RE.test(String(value || "")) ? String(value) : null;
 function removeExpensesForDay(entries = [], goalId, date) {
@@ -135,12 +116,13 @@ function removeExpensesForDay(entries = [], goalId, date) {
   const kept = rows.filter((entry) => entry.goalId !== goalId || entry.date !== day);
   return { entries: kept, removedExpenses: rows.length - kept.length };
 }
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 const DEFAULT_FOCUS_MINUTES = 30;
 let dataDir = "";
 let dataFile = "";
 let dataBackupFile = "";
 let settingsFile = "";
+let recoveredDataFromBackup = false;
 const MAX_EXPENSE_ENTRIES = 2e4;
 let data = {
   version: DATA_VERSION,
@@ -254,19 +236,41 @@ function isUsableData(value) {
   return !!value && typeof value === "object" && (Array.isArray(value.todos) || Array.isArray(value.lists) || Array.isArray(value.goals));
 }
 function readDataWithBackup() {
+  recoveredDataFromBackup = false;
   const primary = readJson(dataFile, null);
+  if (storedDataVersion(primary) > DATA_VERSION) return primary;
   if (isUsableData(primary)) return primary;
   const backup = readJson(dataBackupFile, null);
+  if (storedDataVersion(backup) > DATA_VERSION) return backup;
   if (isUsableData(backup)) {
     console.warn("[store] 主数据文件不可用，已从备份恢复");
-    try {
-      writeJsonAtomic(dataFile, backup);
-    } catch (err) {
-      console.error("[store] 备份回写失败：", err.message);
-    }
+    // Defer restoring data.json until initStore has applied the version gate and,
+    // for old schemas, created a non-overwriting pre-migration copy.
+    recoveredDataFromBackup = true;
     return backup;
   }
   return null;
+}
+function storedDataVersion(value) {
+  const version = Number(value?.version);
+  return Number.isInteger(version) && version >= 0 ? version : 0;
+}
+function createPreV4Backup(value) {
+  const stamp = Date.now();
+  const serialized = JSON.stringify(value, null, 2);
+  for (let attempt = 0; attempt < 1e3; attempt++) {
+    const suffix = attempt ? `-${attempt}` : "";
+    const file = node_path.join(dataDir, `data.pre-v4-${stamp}${suffix}.json`);
+    try {
+      node_fs.writeFileSync(file, serialized, { encoding: "utf8", flag: "wx" });
+      console.warn(`[store] 升级前数据已备份到 ${file}`);
+      return file;
+    } catch (error) {
+      if (error?.code === "EEXIST") continue;
+      throw error;
+    }
+  }
+  throw new Error("无法创建不覆盖旧文件的 v4 升级前备份。");
 }
 let flushTimer = null;
 function scheduleFlush() {
@@ -304,6 +308,11 @@ function initStore() {
     focusSessions: [],
     focusTimer: defaultFocusTimer()
   };
+  const sourceDataVersion = storedDataVersion(data);
+  if (sourceDataVersion > DATA_VERSION) {
+    throw new Error(`数据版本 ${sourceDataVersion} 高于本程序支持的版本 ${DATA_VERSION}，已停止启动以避免覆盖新版本数据。`);
+  }
+  const preMigrationBackupFile = sourceDataVersion < DATA_VERSION ? createPreV4Backup(data) : null;
   if (!Array.isArray(data.lists)) data.lists = [];
   if (!Array.isArray(data.todos)) data.todos = [];
   if (!Array.isArray(data.goals)) data.goals = [];
@@ -317,11 +326,16 @@ function initStore() {
   data.focusTimer = normalizedFocusTimer;
   migrateTodoTimes();
   migrateGoals();
+  if (data.version !== DATA_VERSION) {
+    data.version = DATA_VERSION;
+    scheduleFlush();
+  }
   rollOverUnfinishedTodos();
   settings = { ...defaultSettings(), ...readJson(settingsFile, null) || {} };
   settings.window = { ...defaultSettings().window, ...settings.window || {} };
   settings.widget = { ...defaultSettings().widget, ...settings.widget || {} };
   settings.countdown = { ...defaultSettings().countdown, ...settings.countdown || {} };
+  if (recoveredDataFromBackup) scheduleFlush();
   if (data.lists.length === 0) {
     data.lists.push({
       id: node_crypto.randomUUID(),
@@ -337,10 +351,10 @@ function initStore() {
   } catch (err) {
     console.error("[store] 初始备份写入失败：", err.message);
   }
-  return { dataDir, dataFile, settingsFile, dataBackupFile };
+  return { dataDir, dataFile, settingsFile, dataBackupFile, preMigrationBackupFile };
 }
 function migrateTodoTimes() {
-  let changed = data.version !== DATA_VERSION;
+  let changed = false;
   for (const todo of data.todos) {
     const startTime = taskStartTime(todo);
     const endTime = taskEndTime(todo);
@@ -351,8 +365,8 @@ function migrateTodoTimes() {
     todo.endTime = endTime;
     todo.time = endTime;
   }
-  data.version = DATA_VERSION;
   if (changed) scheduleFlush();
+  return changed;
 }
 function getSettings() {
   return settings;
@@ -439,9 +453,11 @@ function migrateGoals() {
       goal.periods = [];
       changed = true;
     }
+    if (goal.mode === "ledger" && migrateExpenseCategories(goal, data.expenses).changed) changed = true;
     if (rollGoalPeriod(goal)) changed = true;
   }
   if (changed) scheduleFlush();
+  return changed;
 }
 function accumulate(todo) {
   if (!todo.startedAt) return todo;
@@ -652,8 +668,8 @@ const repo = {
       periods: [],
       // 已结束周期的归档，给迷你趋势图用
       // —— 台账模式 ——
-      // 七个类别改过名的存这里（只存改过的）。id/颜色/分组永远不动，见 shared/expense.js
-      catNames: normalizeCatNames(input.catNames),
+      // 每本台账拥有独立的稳定类别目录。流水只保存类别 id，改名或停用不会改写历史账目。
+      ...(mode === "ledger" ? { expenseCategories: defaultExpenseCategories(input.catNames) } : {}),
       order: nextOrder(data.goals),
       createdAt: now,
       updatedAt: now
@@ -665,6 +681,7 @@ const repo = {
   updateGoal(id, patch = {}) {
     const goal = data.goals.find((g) => g.id === id);
     if (!goal) return null;
+    const previousMode = goal.mode;
     if (patch.name !== void 0) goal.name = String(patch.name).slice(0, 40);
     if (patch.unit !== void 0) goal.unit = String(patch.unit).slice(0, 8);
     if (patch.color !== void 0) goal.color = patch.color;
@@ -672,10 +689,17 @@ const repo = {
     if (patch.current !== void 0) goal.current = toNumber(patch.current, goal.current);
     if (patch.order !== void 0) goal.order = patch.order;
     if (patch.mode !== void 0) goal.mode = normalizeGoalMode(patch.mode);
+    if (goal.mode === "ledger" && (previousMode !== "ledger" || !Array.isArray(goal.expenseCategories) || goal.expenseCategories.length === 0)) {
+      migrateExpenseCategories(goal, data.expenses);
+    }
     if (patch.periodTotal !== void 0) {
       goal.periodTotal = Math.max(0, toNumber(patch.periodTotal, goal.periodTotal));
     }
-    if (patch.catNames !== void 0) goal.catNames = normalizeCatNames(patch.catNames);
+    if (patch.catNames !== void 0 && goal.mode === "ledger" && patch.catNames && typeof patch.catNames === "object") {
+      for (const [categoryId, name] of Object.entries(patch.catNames)) {
+        renameExpenseCategoryDefinition(goal, categoryId, name);
+      }
+    }
     if (patch.period !== void 0) {
       const period = normalizeGoalPeriod(patch.period);
       if (period !== goal.period) {
@@ -722,6 +746,42 @@ const repo = {
     };
   },
   /* ---------- 费用台账 ---------- */
+  addExpenseCategory(goalId, input = {}) {
+    const goal = data.goals.find((item) => item.id === goalId && item.mode === "ledger");
+    const result = createExpenseCategory(goal, input, { idFactory: () => node_crypto.randomUUID() });
+    if (result.ok) {
+      goal.updatedAt = Date.now();
+      scheduleFlush();
+    }
+    return result;
+  },
+  renameExpenseCategory(goalId, categoryId, name) {
+    const goal = data.goals.find((item) => item.id === goalId && item.mode === "ledger");
+    const result = renameExpenseCategoryDefinition(goal, categoryId, name);
+    if (result.ok) {
+      goal.updatedAt = Date.now();
+      scheduleFlush();
+    }
+    return result;
+  },
+  archiveExpenseCategory(goalId, categoryId) {
+    const goal = data.goals.find((item) => item.id === goalId && item.mode === "ledger");
+    const result = archiveExpenseCategoryDefinition(goal, categoryId);
+    if (result.ok) {
+      goal.updatedAt = Date.now();
+      scheduleFlush();
+    }
+    return result;
+  },
+  restoreExpenseCategory(goalId, categoryId) {
+    const goal = data.goals.find((item) => item.id === goalId && item.mode === "ledger");
+    const result = restoreExpenseCategoryDefinition(goal, categoryId);
+    if (result.ok) {
+      goal.updatedAt = Date.now();
+      scheduleFlush();
+    }
+    return result;
+  },
   listExpenses() {
     return [...data.expenses].sort(
       (a, b) => (b.date || "").localeCompare(a.date || "") || (b.at || 0) - (a.at || 0)
@@ -732,10 +792,10 @@ const repo = {
    * 也留得下痕迹。为 0 的直接拒掉，那是误触。
    */
   addExpense(input = {}) {
-    const cat = normalizeExpenseCat(input.cat);
-    if (!cat) return null;
     const goal = data.goals.find((g) => g.id === input.goalId && g.mode === "ledger");
     if (!goal) return null;
+    const cat = normalizeExpenseCat(goal, input.cat);
+    if (!cat) return null;
     const amount = round2(toNumber(input.amount, 0));
     if (!amount) return null;
     const entry = {
@@ -760,7 +820,8 @@ const repo = {
     const entry = data.expenses.find((e) => e.id === id);
     if (!entry) return null;
     if (patch.cat !== void 0) {
-      const cat = normalizeExpenseCat(patch.cat);
+      const goal = data.goals.find((item) => item.id === entry.goalId && item.mode === "ledger");
+      const cat = normalizeExpenseCat(goal, patch.cat);
       if (cat) entry.cat = cat;
     }
     if (patch.date !== void 0) {
@@ -957,7 +1018,28 @@ function syncAutoLaunch(enabled) {
 }
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 const DAY_MS = 864e5;
-const escapeXml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+function sanitizeXmlText(value) {
+  let output = "";
+  for (const character of String(value ?? "")) {
+    const codePoint = character.codePointAt(0);
+    if (
+      codePoint === 9 || codePoint === 10 || codePoint === 13 ||
+      codePoint >= 32 && codePoint <= 55295 ||
+      codePoint >= 57344 && codePoint <= 65533 ||
+      codePoint >= 65536 && codePoint <= 1114111
+    ) output += character;
+  }
+  return output;
+}
+function workbookCategoryKey(value) {
+  const raw = String(value ?? "");
+  let encoded = "cat-utf16-";
+  for (let index = 0; index < raw.length; index++) {
+    encoded += raw.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return encoded;
+}
+const escapeXml = (value) => sanitizeXmlText(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 function columnName(index) {
   let value = index;
   let out = "";
@@ -1014,21 +1096,7 @@ function excelDateTimeSerial(timestamp) {
   );
   return (localAsUtc - Date.UTC(1899, 11, 30)) / DAY_MS;
 }
-function summarizeEntries(entries) {
-  const byCat = Object.fromEntries(EXPENSE_CATS.map((cat) => [cat.id, { count: 0, amount: 0 }]));
-  let opex = 0;
-  let cogs = 0;
-  for (const entry of entries) {
-    const cat = EXPENSE_CATS.find((item) => item.id === entry.cat);
-    if (!cat) continue;
-    const amount = Number(entry.amount) || 0;
-    byCat[cat.id].count += 1;
-    byCat[cat.id].amount += amount;
-    if (cat.group === "cogs") cogs += amount;
-    else opex += amount;
-  }
-  return { count: entries.length, opex, cogs, total: opex + cogs, byCat };
-}
+const summarizeEntries = (goal, entries) => summarizeExpenseEntries(goal, entries);
 function stylesXml() {
   return `${XML_DECL}
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -1109,12 +1177,21 @@ function summarySheetXml({ goal, entries, scope, selectedDates, exportedAt, appV
   const to = dates[dates.length - 1] || "无记录";
   const isContinuous = sortedDates.length < 2 || excelDateSerialFromYmd(sortedDates[sortedDates.length - 1]) - excelDateSerialFromYmd(sortedDates[0]) + 1 === sortedDates.length;
   const scopeText = scope === "all" ? "全部历史" : `自定义日期（${sortedDates.length} 天${isContinuous ? "" : "，非连续"}）`;
-  const totals = summarizeEntries(entries);
+  const categories = catsOf(goal);
+  const totals = summarizeEntries(goal, entries);
   const detailLastRow = Math.max(2, entries.length + 1);
   const sequenceRange = `'费用明细'!$A$2:$A$${detailLastRow}`;
   const groupRange = `'费用明细'!$G$2:$G$${detailLastRow}`;
-  const catRange = `'费用明细'!$F$2:$F$${detailLastRow}`;
+  const catCodeRange = `'费用明细'!$E$2:$E$${detailLastRow}`;
   const amountRange = `'费用明细'!$H$2:$H$${detailLastRow}`;
+  const categoryStartRow = 13;
+  const categoryEndRow = Math.max(categoryStartRow, categoryStartRow + categories.length - 1);
+  const auditTitleRow = categoryEndRow + 2;
+  const auditCountRow = auditTitleRow + 1;
+  const auditAmountRow = auditTitleRow + 2;
+  const fieldsTitleRow = auditTitleRow + 4;
+  const fieldStartRow = fieldsTitleRow + 1;
+  const finalRow = fieldStartRow + 2;
   const rows = [];
   rows.push(rowXml(1, [textCell(1, 1, "费用台账对账导出", 1)], 32));
   rows.push(
@@ -1154,13 +1231,12 @@ function summarySheetXml({ goal, entries, scope, selectedDates, exportedAt, appV
       totals.opex,
       16
     ),
-    // 货款那一档的标题跟着类别改名走；SUMIF 匹配的就是明细表里写的同一个词，
-    // 两处必须取自同一个 cogsLabel(goal)，否则公式匹配不上、算出 0
+    // 标题跟着类别改名走，公式使用稳定的费用口径，避免特殊字符进入公式文本。
     textCell(9, 5, cogsLabel(goal), 15),
     formulaNumberCell(
       9,
       6,
-      `SUMIF(${groupRange},"${cogsLabel(goal)}",${amountRange})`,
+      `SUMIF(${groupRange},"货款单列",${amountRange})`,
       totals.cogs,
       16
     ),
@@ -1169,59 +1245,59 @@ function summarySheetXml({ goal, entries, scope, selectedDates, exportedAt, appV
   ], 32));
   rows.push(rowXml(11, [textCell(11, 1, "分类汇总", 2)], 24));
   rows.push(rowXml(12, [
-    textCell(12, 1, "类别编码", 5),
+    textCell(12, 1, "稳定类别键", 5),
     textCell(12, 2, "类别名称", 5),
     textCell(12, 3, "费用口径", 5),
     textCell(12, 4, "笔数", 5),
     textCell(12, 5, `金额（${goal.unit || "元"}）`, 5)
   ], 25));
-  catsOf(goal).forEach((cat, index) => {
-    const row = 13 + index;
-    const cached = totals.byCat[cat.id];
+  categories.forEach((cat, index) => {
+    const row = categoryStartRow + index;
+    const cached = totals.byCat[cat.id] || { count: 0, amount: 0 };
     const bodyStyle = cat.group === "cogs" ? 13 : 6;
     const amountStyle = cat.group === "cogs" ? 14 : 10;
     rows.push(rowXml(row, [
-      textCell(row, 1, cat.id, bodyStyle),
+      textCell(row, 1, workbookCategoryKey(cat.id), bodyStyle),
       textCell(row, 2, cat.name, bodyStyle),
-      textCell(row, 3, cat.group === "cogs" ? cogsLabel(goal) : OPEX_LABEL, bodyStyle),
-      formulaNumberCell(row, 4, `COUNTIF(${catRange},B${row})`, cached.count, 22),
-      formulaNumberCell(row, 5, `SUMIF(${catRange},B${row},${amountRange})`, cached.amount, amountStyle)
+      textCell(row, 3, expenseCategoryGroupLabel(cat), bodyStyle),
+      formulaNumberCell(row, 4, `SUMPRODUCT(--EXACT(${catCodeRange},A${row}))`, cached.count, 22),
+      formulaNumberCell(row, 5, `SUMPRODUCT(--EXACT(${catCodeRange},A${row}),${amountRange})`, cached.amount, amountStyle)
     ], 22));
   });
-  const countPass = totals.count === EXPENSE_CATS.reduce((sum, cat) => sum + totals.byCat[cat.id].count, 0);
+  const countPass = totals.count === categories.reduce((sum, cat) => sum + totals.byCat[cat.id].count, 0);
   const amountPass = Math.abs(
-    totals.total - EXPENSE_CATS.reduce((sum, cat) => sum + totals.byCat[cat.id].amount, 0)
+    totals.total - categories.reduce((sum, cat) => sum + totals.byCat[cat.id].amount, 0)
   ) < 1e-3;
-  rows.push(rowXml(21, [textCell(21, 1, "对账检查", 2)], 24));
-  rows.push(rowXml(22, [
-    textCell(22, 1, "明细笔数与分类笔数一致", 17),
+  rows.push(rowXml(auditTitleRow, [textCell(auditTitleRow, 1, "对账检查", 2)], 24));
+  rows.push(rowXml(auditCountRow, [
+    textCell(auditCountRow, 1, "明细笔数与分类笔数一致", 17),
     formulaTextCell(
-      22,
+      auditCountRow,
       2,
-      'IF(B9=SUM(D13:D19),"PASS","FAIL")',
+      `IF(B9=SUM(D${categoryStartRow}:D${categoryEndRow}),"PASS","FAIL")`,
       countPass ? "PASS" : "FAIL",
       countPass ? 18 : 19
     )
   ], 23));
-  rows.push(rowXml(23, [
-    textCell(23, 1, "明细金额与分类金额一致", 17),
+  rows.push(rowXml(auditAmountRow, [
+    textCell(auditAmountRow, 1, "明细金额与分类金额一致", 17),
     formulaTextCell(
-      23,
+      auditAmountRow,
       2,
-      'IF(ABS(H9-SUM(E13:E19))<0.001,"PASS","FAIL")',
+      `IF(ABS(H9-SUM(E${categoryStartRow}:E${categoryEndRow}))<0.001,"PASS","FAIL")`,
       amountPass ? "PASS" : "FAIL",
       amountPass ? 18 : 19
     )
   ], 23));
-  rows.push(rowXml(25, [textCell(25, 1, "字段说明", 2)], 24));
-  rows.push(rowXml(26, [
-    textCell(26, 1, "账务日期决定费用归属；登记时间是实际录入系统的时间，两者不同会标记为“补录”。", 11)
+  rows.push(rowXml(fieldsTitleRow, [textCell(fieldsTitleRow, 1, "字段说明", 2)], 24));
+  rows.push(rowXml(fieldStartRow, [
+    textCell(fieldStartRow, 1, "账务日期决定费用归属；登记时间是实际录入系统的时间，两者不同会标记为“补录”。", 11)
   ], 28));
-  rows.push(rowXml(27, [
-    textCell(27, 1, "金额列保持 Excel 数值，可直接筛选、求和、透视；负数表示冲减或更正。", 11)
+  rows.push(rowXml(fieldStartRow + 1, [
+    textCell(fieldStartRow + 1, 1, "金额列保持 Excel 数值，可直接筛选、求和、透视；负数表示冲减或更正。", 11)
   ], 28));
-  rows.push(rowXml(28, [
-    textCell(28, 1, "记录 ID 与台账 ID 用于追溯原始数据，建议对账归档时一并保留。", 11)
+  rows.push(rowXml(fieldStartRow + 2, [
+    textCell(fieldStartRow + 2, 1, "稳定类别键由内部类别 ID 确定；记录 ID 与台账 ID 用于追溯原始数据，建议归档时一并保留。", 11)
   ], 28));
   const merges = [
     "A1:H1",
@@ -1234,18 +1310,18 @@ function summarySheetXml({ goal, entries, scope, selectedDates, exportedAt, appV
     "F6:H6",
     "A8:H8",
     "A11:H11",
-    "A21:H21",
-    "B22:H22",
-    "B23:H23",
-    "A25:H25",
-    "A26:H26",
-    "A27:H27",
-    "A28:H28"
+    `A${auditTitleRow}:H${auditTitleRow}`,
+    `B${auditCountRow}:H${auditCountRow}`,
+    `B${auditAmountRow}:H${auditAmountRow}`,
+    `A${fieldsTitleRow}:H${fieldsTitleRow}`,
+    `A${fieldStartRow}:H${fieldStartRow}`,
+    `A${fieldStartRow + 1}:H${fieldStartRow + 1}`,
+    `A${fieldStartRow + 2}:H${fieldStartRow + 2}`
   ];
   return `${XML_DECL}
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
-  <dimension ref="A1:H28"/>
+  <dimension ref="A1:H${finalRow}"/>
   <sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="20"/>
   <cols>
@@ -1274,7 +1350,7 @@ function detailSheetXml({ goal, entries }) {
     "台账名称",
     "账务日期",
     "账务月份",
-    "类别编码",
+    "稳定类别键",
     "类别名称",
     "费用口径",
     `金额（${goal.unit || "元"}）`,
@@ -1287,7 +1363,7 @@ function detailSheetXml({ goal, entries }) {
   rows.push(rowXml(1, headers.map((header, index) => textCell(1, index + 1, header, 5)), 28));
   sorted.forEach((entry, index) => {
     const row = index + 2;
-    const cat = catsOf(goal).find((item) => item.id === entry.cat);
+    const cat = categoryOf(goal, entry.cat);
     const isGoods = cat?.group === "cogs";
     const registeredDate = entry.at ? new Date(entry.at) : null;
     const registeredDay = registeredDate && !Number.isNaN(registeredDate.getTime()) ? localYmd(registeredDate) : null;
@@ -1300,9 +1376,9 @@ function detailSheetXml({ goal, entries }) {
       textCell(row, 2, goal.name || "费用台账", 6),
       accountDate === null ? textCell(row, 3, entry.date || "", 6) : numberCell(row, 3, accountDate, 8),
       textCell(row, 4, String(entry.date || "").slice(0, 7), 9),
-      textCell(row, 5, cat?.id || entry.cat || "", isGoods ? 13 : 6),
+      textCell(row, 5, workbookCategoryKey(cat?.id ?? entry.cat ?? ""), isGoods ? 13 : 6),
       textCell(row, 6, cat?.name || "未知", isGoods ? 13 : 6),
-      textCell(row, 7, isGoods ? cogsLabel(goal) : OPEX_LABEL, isGoods ? 13 : 6),
+      textCell(row, 7, expenseCategoryGroupLabel(cat), isGoods ? 13 : 6),
       numberCell(row, 8, entry.amount, amountStyle),
       textCell(row, 9, entry.note || "", 11),
       registeredAt === null ? textCell(row, 10, "", 6) : numberCell(row, 10, registeredAt, 12),
@@ -1425,17 +1501,22 @@ function buildExpenseWorkbook({
   exportedAt = Date.now(),
   appVersion = ""
 }) {
+  const workbookGoal = catsOf(goal).length ? goal : {
+    ...goal,
+    mode: "ledger",
+    expenseCategories: defaultExpenseCategories(goal?.catNames)
+  };
   const modifiedAt = new Date(exportedAt);
   const timestamp = modifiedAt.toISOString();
   const summaryXml = summarySheetXml({
-    goal,
+    goal: workbookGoal,
     entries,
     scope,
     selectedDates,
     exportedAt,
     appVersion
   });
-  const detailsXml = detailSheetXml({ goal, entries });
+  const detailsXml = detailSheetXml({ goal: workbookGoal, entries });
   const files = [
     {
       name: "[Content_Types].xml",
@@ -1466,7 +1547,7 @@ function buildExpenseWorkbook({
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <dc:creator>时间大师 V2</dc:creator>
   <cp:lastModifiedBy>时间大师 V2</cp:lastModifiedBy>
-  <dc:title>${escapeXml(goal.name || "费用台账")} 对账导出</dc:title>
+  <dc:title>${escapeXml(workbookGoal.name || "费用台账")} 对账导出</dc:title>
   <dc:subject>费用台账明细与汇总</dc:subject>
   <dcterms:created xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:created>
   <dcterms:modified xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:modified>
@@ -2412,6 +2493,26 @@ function registerIpc() {
     if (r.ok) pushSnapshot();
     return r;
   });
+  handleTrusted("expenseCategory:add", (_e, goalId, input) => {
+    const r = repo.addExpenseCategory(goalId, input);
+    if (r.ok) pushSnapshot();
+    return r;
+  });
+  handleTrusted("expenseCategory:rename", (_e, goalId, categoryId, name) => {
+    const r = repo.renameExpenseCategory(goalId, categoryId, name);
+    if (r.ok) pushSnapshot();
+    return r;
+  });
+  handleTrusted("expenseCategory:archive", (_e, goalId, categoryId) => {
+    const r = repo.archiveExpenseCategory(goalId, categoryId);
+    if (r.ok) pushSnapshot();
+    return r;
+  });
+  handleTrusted("expenseCategory:restore", (_e, goalId, categoryId) => {
+    const r = repo.restoreExpenseCategory(goalId, categoryId);
+    if (r.ok) pushSnapshot();
+    return r;
+  });
   handleTrusted("expense:exportExcel", async (e, input) => {
     const win = windowOf(e);
     if (!win || win !== getMainWindow()) return { ok: false, reason: "只能从费用后台导出。" };
@@ -2623,7 +2724,14 @@ if (!gotLock) {
   electron.app.on("second-instance", () => {
     void revealWidget();
   });
-  electron.app.whenReady().then(bootstrap);
+  electron.app.whenReady().then(bootstrap).catch((error) => {
+    console.error("[bootstrap] 启动失败：", error);
+    try {
+      electron.dialog.showErrorBox("时间大师 V2 无法启动", String(error?.message || error));
+    } finally {
+      electron.app.quit();
+    }
+  });
 }
 function bootstrap() {
   initStore();
@@ -2664,9 +2772,67 @@ async function runPackagedSmokeTest(main, widget) {
     }))()`);
   };
   try {
+    if (!widget) throw new Error("桌面小组件未创建，打包烟测不能继续。");
     const mainResult = await checkWindow(main);
-    const widgetResult = widget ? await checkWindow(widget) : null;
-    const ok = mainResult.mounted && mainResult.apiExposed && mainResult.snapshotShape && (!widgetResult || widgetResult.mounted && widgetResult.apiExposed && widgetResult.snapshotShape);
+    const widgetResult = await checkWindow(widget);
+    const captureDir = process.env.TIMEMASTER_SMOKE_CAPTURE_DIR;
+    if (captureDir) {
+      const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
+      const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
+      repo.renameExpenseCategory(ledger.id, "office", "软件订阅");
+      repo.renameExpenseCategory(secondLedger.id, "office", "广告投放");
+      const custom = repo.addExpenseCategory(ledger.id, { name: "订阅服务" });
+      const today = localYmd$1();
+      const yesterdayDate = /* @__PURE__ */ new Date();
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterday = localYmd$1(yesterdayDate);
+      for (const entry of [
+        { cat: "office", amount: 86.5, note: "打印耗材", date: today },
+        { cat: "travel", amount: 42, note: "客户拜访地铁", date: today },
+        { cat: "goods", amount: 1260, note: "样品采购", date: yesterday },
+        { cat: custom.category.id, amount: 128, note: "设计工具月费", date: today }
+      ]) repo.addExpense({ goalId: ledger.id, ...entry });
+      repo.addExpense({ goalId: secondLedger.id, cat: "office", amount: 64, note: "素材推广", date: today });
+      data.expenses.push({
+        id: node_crypto.randomUUID(),
+        goalId: ledger.id,
+        date: today,
+        cat: "smoke-legacy-category",
+        amount: 17.25,
+        note: "旧版导入记录",
+        at: Date.now()
+      });
+      migrateExpenseCategories(ledger, data.expenses);
+      pushSnapshot();
+      main.webContents.send("app:navigate", { view: "expense", goalId: ledger.id, date: today });
+      main.setSize(1280, 800);
+      await delay(450);
+      node_fs.mkdirSync(captureDir, { recursive: true });
+      const overview = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "expense-overview.png"), overview.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.exp-cat-btn')?.click()`);
+      await delay(250);
+      const categoryDialogOpened = await main.webContents.executeJavaScript(`Boolean(document.querySelector('.cat-dlg'))`);
+      if (!categoryDialogOpened) throw new Error("类别管理弹窗未打开，无法完成视觉烟测。");
+      const categories = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "expense-categories.png"), categories.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.cat-dlg')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+      await delay(100);
+      const categoryDialogClosed = await main.webContents.executeJavaScript(`!document.querySelector('.cat-dlg')`);
+      if (!categoryDialogClosed) throw new Error("类别管理弹窗未能通过 Escape 关闭。");
+      main.setSize(900, 620);
+      await delay(250);
+      const compact = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "expense-compact.png"), compact.toPNG());
+      main.setSize(1280, 800);
+      await main.webContents.executeJavaScript(`document.querySelector('.nav-item')?.click()`);
+      await delay(250);
+      const audit = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "expense-audit.png"), audit.toPNG());
+      const widgetLedger = await widget.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "widget-ledger.png"), widgetLedger.toPNG());
+    }
+    const ok = mainResult.mounted && mainResult.apiExposed && mainResult.snapshotShape && widgetResult.mounted && widgetResult.apiExposed && widgetResult.snapshotShape;
     node_fs.writeFileSync(resultFile, JSON.stringify({ ok, version: electron.app.getVersion(), main: mainResult, widget: widgetResult }, null, 2), "utf8");
     electron.app.exit(ok ? 0 : 1);
   } catch (error) {

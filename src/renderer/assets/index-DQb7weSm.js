@@ -524,34 +524,80 @@ const _sfc_main$7 = {
       },
       { immediate: true }
     );
-    const expOn = (day) => summarize(expensesOn(day));
+    const calendarRound = (value) => Math.round((Number(value) || 0) * 100) / 100;
+    function calendarExpenseSummary(entries = []) {
+      const ledgers = new Map(ledgerGoals.value.map((ledger) => [String(ledger.id), ledger]));
+      const rowsByLedgerAndCategory = /* @__PURE__ */ new Map();
+      const out = { opex: 0, cogs: 0, unclassified: 0, total: 0, count: 0, rows: [] };
+      for (const entry of entries) {
+        const goalId = String(entry.goalId ?? "");
+        const categoryId = String(entry.cat ?? "");
+        const ledger = ledgers.get(goalId) || null;
+        const category = ledger ? catsOf(ledger).find((item) => item.id === categoryId) || null : null;
+        const group = ["opex", "cogs", "unclassified"].includes(category?.group) ? category.group : "unclassified";
+        const amount = Number(entry.amount) || 0;
+        const key = JSON.stringify([goalId, categoryId]);
+        let row = rowsByLedgerAndCategory.get(key);
+        if (!row) {
+          const baseName = category?.name || "遗留/未分类";
+          const ledgerName = ledger?.name || "已移除台账";
+          row = {
+            id: key,
+            group,
+            name: ledgers.size > 1 || !ledger ? `${ledgerName} · ${baseName}` : baseName,
+            color: category?.color || "#7f8b9a",
+            amount: 0,
+            count: 0
+          };
+          rowsByLedgerAndCategory.set(key, row);
+        }
+        row.amount += amount;
+        row.count += 1;
+        out[group] += amount;
+        out.count += 1;
+      }
+      out.opex = calendarRound(out.opex);
+      out.cogs = calendarRound(out.cogs);
+      out.unclassified = calendarRound(out.unclassified);
+      out.total = calendarRound(out.opex + out.cogs + out.unclassified);
+      out.rows = [...rowsByLedgerAndCategory.values()].map((row) => ({
+        ...row,
+        amount: calendarRound(row.amount)
+      })).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+      return out;
+    }
+    const expOn = (day) => calendarExpenseSummary(expensesOn(day));
     function cellExp(day) {
       const s = expOn(day);
       if (!s.count) return null;
-      const cogsOnly = !s.opex && !!s.cogs;
+      const nonCogs = calendarRound(s.opex + s.unclassified);
+      const cogsOnly = !nonCogs && !!s.cogs;
       return {
-        text: formatGoalNumber(cogsOnly ? s.cogs : s.opex),
+        text: formatGoalNumber(cogsOnly ? s.cogs : nonCogs),
         cogsOnly,
+        legacyOnly: !s.opex && !!s.unclassified,
         hasCogs: !!s.cogs,
-        title: `费用 ${formatGoalNumber(s.opex)} · ${calCogsName.value} ${formatGoalNumber(s.cogs)} · ${s.count} 笔`
+        hasLegacy: !!s.unclassified,
+        title: `期间费用 ${formatGoalNumber(s.opex)} · 遗留/未分类 ${formatGoalNumber(s.unclassified)} · ${calCogsName.value} ${formatGoalNumber(s.cogs)} · ${s.count} 笔`
       };
     }
     function cellMix(day) {
       const s = expOn(day);
-      if (!s.opex) return [];
-      return OPEX_CATS.map((c) => ({
-        id: c.id,
-        color: c.color,
-        pct: s.byCat[c.id] / s.opex * 100
-      })).filter((x) => x.pct > 0);
+      const nonCogs = calendarRound(s.opex + s.unclassified);
+      if (!nonCogs) return [];
+      return s.rows.filter((row) => row.group !== "cogs").map((row) => ({
+        id: row.id,
+        color: row.color,
+        pct: row.amount / nonCogs * 100
+      })).filter((row) => row.pct > 0);
     }
     const chipLimit = (day) => cellExp(day) ? 2 : 3;
-    const selectedExp = computed(() => summarize(expensesOn(state.selected)));
-    const calCats = computed(() => catsOf(ledgerGoals.value[0]));
-    const calCogsName = computed(() => cogsLabel(ledgerGoals.value[0]));
-    const selectedExpRows = computed(
-      () => calCats.value.map((c) => ({ ...c, amount: selectedExp.value.byCat[c.id] || 0 })).filter((r) => r.amount !== 0).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-    );
+    const selectedExp = computed(() => calendarExpenseSummary(expensesOn(state.selected)));
+    const calCogsName = computed(() => {
+      const names = [...new Set(ledgerGoals.value.map((ledger) => cogsLabel(ledger)))];
+      return names.length === 1 ? names[0] : "货款";
+    });
+    const selectedExpRows = computed(() => selectedExp.value.rows.filter((row) => row.amount !== 0));
     const isToday = (d) => d === todayYmd();
     const dayNum = (d) => parseYmd(d).getDate();
     const headIsWeekend = (i) => {
@@ -665,9 +711,14 @@ const _sfc_main$7 = {
                       }), 128))
                     ]),
                     createBaseVNode("b", {
-                      class: normalizeClass({ cogs: cellExp(day).cogsOnly })
+                      class: normalizeClass({ cogs: cellExp(day).cogsOnly, legacy: cellExp(day).legacyOnly })
                     }, toDisplayString(cellExp(day).text), 3),
-                    cellExp(day).hasCogs && !cellExp(day).cogsOnly ? (openBlock(), createElementBlock("span", _hoisted_17$2)) : createCommentVNode("", true)
+                    cellExp(day).hasCogs && !cellExp(day).cogsOnly ? (openBlock(), createElementBlock("span", _hoisted_17$2)) : createCommentVNode("", true),
+                    cellExp(day).hasLegacy ? (openBlock(), createElementBlock("span", {
+                      key: 1,
+                      class: "legacy-dot",
+                      title: "含遗留/未分类记录"
+                    })) : createCommentVNode("", true)
                   ], 8, _hoisted_15$2)) : createCommentVNode("", true)
                 ], 42, _hoisted_9$4);
               }), 128))
@@ -697,9 +748,14 @@ const _sfc_main$7 = {
                   title: cellExp(day).title
                 }, [
                   createBaseVNode("b", {
-                    class: normalizeClass({ cogs: cellExp(day).cogsOnly })
+                    class: normalizeClass({ cogs: cellExp(day).cogsOnly, legacy: cellExp(day).legacyOnly })
                   }, toDisplayString(cellExp(day).text), 3),
-                  cellExp(day).hasCogs && !cellExp(day).cogsOnly ? (openBlock(), createElementBlock("span", _hoisted_23$2)) : createCommentVNode("", true)
+                  cellExp(day).hasCogs && !cellExp(day).cogsOnly ? (openBlock(), createElementBlock("span", _hoisted_23$2)) : createCommentVNode("", true),
+                  cellExp(day).hasLegacy ? (openBlock(), createElementBlock("span", {
+                    key: 1,
+                    class: "legacy-dot",
+                    title: "含遗留/未分类记录"
+                  })) : createCommentVNode("", true)
                 ], 8, _hoisted_22$2)) : createCommentVNode("", true),
                 createBaseVNode("div", _hoisted_24$1, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(unref(todosOn)(day), (t) => {
@@ -782,11 +838,15 @@ const _sfc_main$7 = {
               onClick: _cache[3] || (_cache[3] = ($event) => unref(state).view = "expense")
             }, [
               createBaseVNode("div", _hoisted_36$1, [
-                _cache[16] || (_cache[16] = createBaseVNode("span", { class: "k" }, "费用", -1)),
+                _cache[16] || (_cache[16] = createBaseVNode("span", { class: "k" }, "期间费用", -1)),
                 createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(selectedExp.value.opex)), 1),
                 selectedExp.value.cogs ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
                   createBaseVNode("span", _hoisted_37$1, toDisplayString(calCogsName.value), 1),
                   createBaseVNode("b", _hoisted_38$1, toDisplayString(unref(formatGoalNumber)(selectedExp.value.cogs)), 1)
+                ], 64)) : createCommentVNode("", true),
+                selectedExp.value.unclassified ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                  createBaseVNode("span", { class: "k legacy" }, "遗留/未分类"),
+                  createBaseVNode("b", { class: "legacy" }, toDisplayString(unref(formatGoalNumber)(selectedExp.value.unclassified)), 1)
                 ], 64)) : createCommentVNode("", true),
                 createBaseVNode("span", _hoisted_39$1, toDisplayString(selectedExp.value.count) + " 笔", 1)
               ]),
@@ -1167,7 +1227,7 @@ const _hoisted_16$1 = { class: "exp-body" };
 const _hoisted_17$1 = { class: "exp-cal" };
 const _hoisted_18$1 = { class: "exp-head" };
 const _hoisted_19$1 = { class: "exp-grid" };
-const _hoisted_20$1 = ["title", "onMousedown", "onMouseenter"];
+const _hoisted_20$1 = ["aria-pressed", "title", "onMousedown", "onMouseenter", "onKeydown"];
 const _hoisted_21$1 = { class: "exp-cell-head" };
 const _hoisted_22$1 = { class: "n" };
 const _hoisted_23$1 = ["title"];
@@ -1217,7 +1277,7 @@ const _hoisted_45 = {
 const _hoisted_46 = { class: "dim" };
 const _hoisted_47 = { class: "exp-add" };
 const _hoisted_48 = { class: "exp-cats" };
-const _hoisted_49 = ["onClick"];
+const _hoisted_49 = ["aria-pressed", "onClick"];
 const _hoisted_50 = { class: "exp-add-row" };
 const _hoisted_51 = ["placeholder"];
 const _hoisted_52 = {
@@ -1233,20 +1293,23 @@ const _hoisted_56 = {
 };
 const _hoisted_57 = { class: "amt" };
 const _hoisted_58 = ["title"];
-const _hoisted_59 = ["onClick"];
+const _hoisted_59 = ["aria-label", "onClick"];
 const _hoisted_60 = {
   key: 0,
   class: "exp-empty"
 };
 const _hoisted_61 = { class: "cat-dlg-rows" };
 const _hoisted_62 = { class: "grp" };
-const _hoisted_63 = ["onUpdate:modelValue", "maxlength", "placeholder"];
+const _hoisted_63 = ["onUpdate:modelValue", "maxlength", "placeholder", "aria-label", "disabled"];
 const _hoisted_64 = {
   class: "short",
   title: "小组件按钮上显示的简称，取名称前两个字"
 };
 const _hoisted_65 = ["onClick"];
 const _hoisted_66 = { class: "cat-dlg-acts" };
+const _cat_add_input_props = ["onUpdate:modelValue", "maxlength"];
+const _cat_add_button_props = ["disabled"];
+const _cat_manage_action_props = ["disabled", "onClick"];
 const _hoisted_67 = { class: "exp-sum" };
 const _hoisted_68 = { class: "exp-card heads" };
 const _hoisted_69 = { class: "exp-card-head" };
@@ -1302,7 +1365,9 @@ const _sfc_main$4 = {
     const period = computed(() => goal.value?.period || "month");
     const unit = computed(() => goal.value?.unit || "元");
     const cats = computed(() => catsOf(goal.value));
+    const activeCats = computed(() => cats.value.filter((c) => !c.archivedAt));
     const opexCats = computed(() => cats.value.filter((c) => c.group === "opex"));
+    const nonCogsCats = computed(() => cats.value.filter((c) => c.group !== "cogs"));
     const catById = computed(() => new Map(cats.value.map((c) => [c.id, c])));
     const catName = (id) => catById.value.get(id)?.name || "未知";
     const cogsName = computed(() => cogsLabel(goal.value));
@@ -1317,40 +1382,42 @@ const _sfc_main$4 = {
     });
     const monthDays = computed(() => {
       const out = /* @__PURE__ */ new Map();
-      let maxOpex = 0;
+      let maxNonCogs = 0;
       for (const date of cells.value) {
-        const sum = summarize(byDate.value.get(date) || []);
+        const sum = summarize(byDate.value.get(date) || [], goal.value);
         out.set(date, sum);
-        if (isSameMonth(date, state.cursor)) maxOpex = Math.max(maxOpex, sum.opex);
+        if (isSameMonth(date, state.cursor)) maxNonCogs = Math.max(maxNonCogs, sum.opex + sum.unclassified);
       }
-      return { map: out, maxOpex };
+      return { map: out, maxNonCogs };
     });
-    const dayOf = (date) => monthDays.value.map.get(date) || summarize([]);
+    const dayOf = (date) => monthDays.value.map.get(date) || summarize([], goal.value);
     function heat(date) {
-      const max = monthDays.value.maxOpex;
-      const v = dayOf(date).opex;
+      const max = monthDays.value.maxNonCogs;
+      const sum = dayOf(date);
+      const v = sum.opex + sum.unclassified;
       if (!max || v <= 0) return 0;
       return Math.sqrt(v / max);
     }
     function composition(date) {
       const sum = dayOf(date);
-      if (!sum.opex) return [];
-      return OPEX_CATS.map((c) => ({
+      const nonCogs = sum.opex + sum.unclassified;
+      if (!nonCogs) return [];
+      return nonCogsCats.value.map((c) => ({
         id: c.id,
         color: c.color,
-        pct: sum.byCat[c.id] / sum.opex * 100
+        pct: sum.byCat[c.id] / nonCogs * 100
       })).filter((s) => s.pct > 0);
     }
     const monthSum = computed(
-      () => summarize(rows.value.filter((e) => isSameMonth(e.date, state.cursor)))
+      () => summarize(rows.value.filter((e) => isSameMonth(e.date, state.cursor)), goal.value)
     );
     const periodKey = computed(() => periodKeyOfYmd(period.value, state.cursor));
     const isCurrentPeriod = computed(() => periodKey.value === periodKeyOfYmd(period.value, todayYmd()));
     const periodBuckets = computed(() => groupByPeriod(rows.value, period.value));
-    const curSum = computed(() => summarize(periodBuckets.value.get(periodKey.value) || []));
+    const curSum = computed(() => summarize(periodBuckets.value.get(periodKey.value) || [], goal.value));
     const prevSum = computed(() => {
       const prevKey = periodKeyOfYmd(period.value, stepPeriod(period.value, state.cursor, -1));
-      return summarize(periodBuckets.value.get(prevKey) || []);
+      return summarize(periodBuckets.value.get(prevKey) || [], goal.value);
     });
     const opexVs = computed(() => compareWithPrev(curSum.value.opex, prevSum.value.opex));
     const cogsVs = computed(() => compareWithPrev(curSum.value.cogs, prevSum.value.cogs));
@@ -1367,20 +1434,24 @@ const _sfc_main$4 = {
       };
     }
     const trend = computed(() => {
-      const series = periodSeries(rows.value, period.value, TREND_PERIODS, state.cursor);
+      const series = periodSeries(rows.value, period.value, TREND_PERIODS, state.cursor, goal.value);
       const maxOpex = Math.max(0, ...series.map((s) => s.opex));
       const maxCogs = Math.max(0, ...series.map((s) => s.cogs));
+      const maxUnclassified = Math.max(0, ...series.map((s) => s.unclassified));
       const divOpex = maxOpex || 1;
       const divCogs = maxCogs || 1;
+      const divUnclassified = maxUnclassified || 1;
       return {
         maxOpex,
         maxCogs,
+        maxUnclassified,
         rows: series.map((s, i) => ({
           ...s,
           label: periodShortLabel(period.value, s.key),
           now: s.key === periodKey.value,
           opexBar: bar(s.opex, divOpex, i),
-          cogsBar: bar(s.cogs, divCogs, i)
+          cogsBar: bar(s.cogs, divCogs, i),
+          unclassifiedBar: bar(s.unclassified, divUnclassified, i)
         }))
       };
     });
@@ -1431,6 +1502,13 @@ const _sfc_main$4 = {
       if (!dragging.value) return;
       if (date !== dragAnchor.value) dragMoved.value = true;
       applyDrag(date);
+    }
+    function onCellKeydown(event, date) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      picked.value = /* @__PURE__ */ new Set([date]);
+      state.selected = date;
+      state.cursor = date;
     }
     function endDrag() {
       if (!dragging.value) return;
@@ -1497,7 +1575,7 @@ const _sfc_main$4 = {
       return span === days.length ? head : `${head}（跳选 ${days.length} 天）`;
     });
     const pickedRows = computed(() => picked.value.size ? rows.value.filter((e) => picked.value.has(e.date)) : []);
-    const pickedSum = computed(() => summarize(pickedRows.value));
+    const pickedSum = computed(() => summarize(pickedRows.value, goal.value));
     const exporting = ref(false);
     const exportMessage = ref("");
     let exportMessageTimer = null;
@@ -1534,19 +1612,123 @@ const _sfc_main$4 = {
       }
     }
     const catForm = ref(null);
+    const categoryUsage = (id) => {
+      const entries = rows.value.filter((entry) => entry.cat === id);
+      const amount = entries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+      return { count: entries.length, amount };
+    };
     function openCatForm() {
       if (!goal.value) return;
-      const draftNames = {};
-      for (const c of cats.value) draftNames[c.id] = c.name;
-      catForm.value = draftNames;
+      const names = /* @__PURE__ */ Object.create(null);
+      for (const c of cats.value) names[c.id] = c.name;
+      catForm.value = { names, newName: "", busy: false, error: "" };
+      nextTick(() => document.querySelector(".cat-dlg-add input")?.focus());
+    }
+    function closeCatForm() {
+      if (catForm.value?.busy) return;
+      catForm.value = null;
+      nextTick(() => document.querySelector(".exp-cat-btn")?.focus());
+    }
+    function onCatDialogKeydown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCatForm();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = event.currentTarget;
+      const focusable = [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')].filter(
+        (element) => element.getClientRects().length > 0
+      );
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    function categoryError(reason) {
+      if (catForm.value) catForm.value.error = String(reason || "操作失败，请稍后重试。");
     }
     async function saveCatForm() {
-      if (!goal.value || !catForm.value) return;
-      await actions.updateGoal(goal.value.id, { catNames: { ...catForm.value } });
-      catForm.value = null;
+      if (!goal.value || !catForm.value || catForm.value.busy) return;
+      catForm.value.busy = true;
+      catForm.value.error = "";
+      try {
+        for (const c of cats.value) {
+          const nextName = catForm.value.names[c.id];
+          if (String(nextName ?? "") === c.name) continue;
+          const result = await actions.renameExpenseCategory(goal.value.id, c.id, nextName);
+          if (!result?.ok) {
+            categoryError(result?.reason);
+            return;
+          }
+        }
+        catForm.value.busy = false;
+        closeCatForm();
+      } catch (error) {
+        categoryError(error?.message);
+      } finally {
+        if (catForm.value) catForm.value.busy = false;
+      }
+    }
+    async function addCategoryFromForm() {
+      if (!goal.value || !catForm.value || catForm.value.busy) return;
+      catForm.value.busy = true;
+      catForm.value.error = "";
+      try {
+        const result = await actions.addExpenseCategory(goal.value.id, { name: catForm.value.newName });
+        if (!result?.ok) return categoryError(result?.reason);
+        catForm.value.names[result.category.id] = result.category.name;
+        catForm.value.newName = "";
+      } catch (error) {
+        categoryError(error?.message);
+      } finally {
+        if (catForm.value) catForm.value.busy = false;
+      }
+    }
+    async function archiveCategoryFromForm(category) {
+      if (!goal.value || !catForm.value || catForm.value.busy) return;
+      const usage = categoryUsage(category.id);
+      const detail = usage.count ? `\n\n已有 ${usage.count} 笔、合计 ${formatGoalNumber(usage.amount)}${unit.value}。历史记录和导出都会继续保留。` : "\n\n这个类别还没有记账记录。";
+      const ok = await confirmDialog(`停用“${category.name}”？${detail}\n\n停用后不会出现在新增记账按钮中，可以随时恢复。`, { okText: "停用" });
+      if (!ok || !catForm.value) return;
+      catForm.value.busy = true;
+      catForm.value.error = "";
+      try {
+        const result = await actions.archiveExpenseCategory(goal.value.id, category.id);
+        if (!result?.ok) return categoryError(result?.reason);
+      } catch (error) {
+        categoryError(error?.message);
+      } finally {
+        if (catForm.value) catForm.value.busy = false;
+      }
+    }
+    async function restoreCategoryFromForm(category) {
+      if (!goal.value || !catForm.value || catForm.value.busy) return;
+      catForm.value.busy = true;
+      catForm.value.error = "";
+      try {
+        const result = await actions.restoreExpenseCategory(goal.value.id, category.id);
+        if (!result?.ok) return categoryError(result?.reason);
+      } catch (error) {
+        categoryError(error?.message);
+      } finally {
+        if (catForm.value) catForm.value.busy = false;
+      }
     }
     const resetCatName = (id) => {
-      if (catForm.value) catForm.value[id] = EXPENSE_CATS.find((c) => c.id === id)?.name || "";
+      if (!catForm.value) return;
+      const fallback = EXPENSE_CATS.find((c) => c.id === id)?.name;
+      if (fallback) catForm.value.names[id] = fallback;
     };
     const pickedBreakdown = computed(() => {
       const opexMax = Math.max(
@@ -1555,12 +1737,12 @@ const _sfc_main$4 = {
       );
       return cats.value.map((c) => {
         const amount = pickedSum.value.byCat[c.id] || 0;
-        const base = c.group === "cogs" ? pickedSum.value.cogs : pickedSum.value.opex;
+        const base = c.group === "cogs" ? pickedSum.value.cogs : c.group === "unclassified" ? pickedSum.value.unclassified : pickedSum.value.opex;
         return {
           ...c,
           amount,
-          // 六项之间按六项自己的最大值比长短；货款自成一档，不跟它们同尺
-          width: c.group === "cogs" ? 0 : amount === 0 ? 0 : Math.max(2, Math.round(Math.abs(amount) / opexMax * 100)),
+          // 期间费用类别按内部最大值比长短；货款与遗留数据各自单列，不跟它们同尺
+          width: c.group !== "opex" ? 0 : amount === 0 ? 0 : Math.max(2, Math.round(Math.abs(amount) / opexMax * 100)),
           share: base ? Math.round(amount / base * 100) : 0
         };
       });
@@ -1570,7 +1752,7 @@ const _sfc_main$4 = {
     const dayRows = computed(
       () => [...byDate.value.get(state.selected) || []].sort((a, b) => (b.at || 0) - (a.at || 0))
     );
-    const daySum = computed(() => summarize(dayRows.value));
+    const daySum = computed(() => summarize(dayRows.value, goal.value));
     function loggedAt(entry) {
       if (!entry.at) return null;
       const d = new Date(entry.at);
@@ -1591,9 +1773,11 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
       if (!ok) return;
       await actions.removeExpense(entry.id);
     }
-    const draft = ref({ cat: OPEX_CATS[0].id, amount: "", note: "" });
+    const firstActiveCategory = () => activeCats.value.find((c) => c.group === "opex")?.id || activeCats.value[0]?.id || "";
+    const draft = ref({ cat: firstActiveCategory(), amount: "", note: "" });
     const amountEl = ref(null);
     const flash = ref("");
+    const canSubmit = computed(() => Boolean(draft.value.cat) && Number.isFinite(Number(draft.value.amount)) && Number(draft.value.amount) !== 0);
     let flashTimer = null;
     async function pickCat(catId) {
       draft.value.cat = catId;
@@ -1603,7 +1787,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
     async function submit() {
       if (!goal.value) return;
       const amount = Number(draft.value.amount);
-      if (!Number.isFinite(amount) || amount === 0) return;
+      if (!draft.value.cat || !Number.isFinite(amount) || amount === 0) return;
       const entry = await actions.addExpense({
         goalId: goal.value.id,
         cat: draft.value.cat,
@@ -1649,6 +1833,13 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
         if (!isRangeMode.value) picked.value = /* @__PURE__ */ new Set([day]);
       }
     );
+    watch(
+      activeCats,
+      (available) => {
+        if (!available.some((c) => c.id === draft.value.cat)) draft.value.cat = firstActiveCategory();
+      },
+      { deep: true }
+    );
     onUnmounted(() => {
       clearTimeout(flashTimer);
       clearTimeout(exportMessageTimer);
@@ -1679,9 +1870,9 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
             ], 40, _hoisted_3$2)) : (openBlock(), createElementBlock("span", _hoisted_5$2, toDisplayString(goal.value.name), 1)),
             createBaseVNode("button", {
               class: "ghost exp-cat-btn",
-              title: "修改七个费用类别的名称",
+              title: "新增、改名、停用或恢复记账类别",
               onClick: openCatForm
-            }, " 类别名称 "),
+            }, " 管理类别 "),
             createBaseVNode("div", _hoisted_6$2, [
               createBaseVNode("select", {
                 class: "exp-preset",
@@ -1703,6 +1894,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               createBaseVNode("input", {
                 class: "exp-date",
                 type: "date",
+                "aria-label": "起始日期",
                 value: rangeFrom.value,
                 onChange: _cache[2] || (_cache[2] = ($event) => setRange($event.target.value, rangeTo.value))
               }, null, 40, _hoisted_8$2),
@@ -1710,6 +1902,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               createBaseVNode("input", {
                 class: "exp-date",
                 type: "date",
+                "aria-label": "结束日期",
                 value: rangeTo.value,
                 onChange: _cache[3] || (_cache[3] = ($event) => setRange(rangeFrom.value, $event.target.value))
               }, null, 40, _hoisted_9$2),
@@ -1767,9 +1960,9 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
           }),
           _cache[15] || (_cache[15] = createBaseVNode("p", null, "还没有费用台账。", -1)),
           _cache[16] || (_cache[16] = createBaseVNode("p", { class: "dim" }, [
-            createTextVNode(" 七个类别（运杂费 / 办公费 / 税费 / 管理费 / 差旅费 / 货款 / 福利费）按天记明细，"),
+            createTextVNode(" 按天记录费用，并按自己的习惯新增、改名或停用期间费用类别。"),
             createBaseVNode("br"),
-            createTextVNode(" 建好以后可以直接在桌面小组件上随手记，这里看月历和汇总对比。 ")
+            createTextVNode(" 数据只保存在本机；建好后也能从桌面小组件快速记账。 ")
           ], -1)),
           createBaseVNode("button", {
             class: "primary",
@@ -1795,11 +1988,15 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                       today: date === unref(todayYmd)(),
                       on: picked.value.has(date)
                     }]),
+                    role: "button",
+                    tabindex: "0",
+                    "aria-pressed": picked.value.has(date),
                     style: normalizeStyle({ "--heat": heat(date) }),
-                    title: `${date}　费用 ${unref(formatGoalNumber)(dayOf(date).opex)}${unit.value}　${cogsName.value} ${unref(formatGoalNumber)(dayOf(date).cogs)}${unit.value}
+                    title: `${date}　期间费用 ${unref(formatGoalNumber)(dayOf(date).opex)}${unit.value}　遗留/未分类 ${unref(formatGoalNumber)(dayOf(date).unclassified)}${unit.value}　${cogsName.value} ${unref(formatGoalNumber)(dayOf(date).cogs)}${unit.value}
 拖动可选一段，按住 Ctrl 单独加减某天`,
                     onMousedown: ($event) => onCellDown($event, date),
-                    onMouseenter: ($event) => onCellEnter(date)
+                    onMouseenter: ($event) => onCellEnter(date),
+                    onKeydown: ($event) => onCellKeydown($event, date)
                   }, [
                     createBaseVNode("div", _hoisted_21$1, [
                       createBaseVNode("span", _hoisted_22$1, toDisplayString(Number(date.slice(8))), 1),
@@ -1809,7 +2006,9 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                         title: `当天有${cogsName.value}`
                       }, null, 8, _hoisted_23$1)) : createCommentVNode("", true)
                     ]),
-                    dayOf(date).opex ? (openBlock(), createElementBlock("div", _hoisted_24, toDisplayString(unref(formatGoalNumber)(dayOf(date).opex)), 1)) : createCommentVNode("", true),
+                    dayOf(date).opex || dayOf(date).unclassified ? (openBlock(), createElementBlock("div", {
+                      class: normalizeClass(["exp-cell-sum", { legacy: !dayOf(date).opex && dayOf(date).unclassified }])
+                    }, toDisplayString(unref(formatGoalNumber)(dayOf(date).opex + dayOf(date).unclassified)), 3)) : createCommentVNode("", true),
                     _cache[17] || (_cache[17] = createBaseVNode("div", { class: "exp-cell-fill" }, null, -1)),
                     composition(date).length ? (openBlock(), createElementBlock("div", _hoisted_25, [
                       (openBlock(true), createElementBlock(Fragment, null, renderList(composition(date), (s) => {
@@ -1825,6 +2024,10 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               createBaseVNode("div", _hoisted_26, [
                 _cache[18] || (_cache[18] = createBaseVNode("span", null, "本月合计", -1)),
                 createBaseVNode("b", null, "费用 " + toDisplayString(unref(formatGoalNumber)(monthSum.value.opex)) + toDisplayString(unit.value), 1),
+                monthSum.value.unclassified ? (openBlock(), createElementBlock("b", {
+                  key: 0,
+                  class: "legacy"
+                }, "遗留/未分类 " + toDisplayString(unref(formatGoalNumber)(monthSum.value.unclassified)) + toDisplayString(unit.value), 1)) : createCommentVNode("", true),
                 createBaseVNode("b", _hoisted_27, toDisplayString(cogsName.value) + " " + toDisplayString(unref(formatGoalNumber)(monthSum.value.cogs)) + toDisplayString(unit.value), 1),
                 createBaseVNode("span", _hoisted_28, toDisplayString(monthSum.value.count) + " 笔", 1)
               ])
@@ -1851,13 +2054,21 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     createBaseVNode("i", null, toDisplayString(cogsName.value), 1),
                     createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(pickedSum.value.cogs)), 1),
                     createBaseVNode("em", null, toDisplayString(unit.value), 1)
-                  ])
+                  ]),
+                  pickedSum.value.unclassified ? (openBlock(), createElementBlock("div", {
+                    key: 0,
+                    class: "big legacy"
+                  }, [
+                    createBaseVNode("i", null, "遗留/未分类"),
+                    createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(pickedSum.value.unclassified)), 1),
+                    createBaseVNode("em", null, toDisplayString(unit.value), 1)
+                  ])) : createCommentVNode("", true)
                 ]),
                 createBaseVNode("div", _hoisted_36, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(pickedBreakdown.value, (r) => {
                     return openBlock(), createElementBlock("div", {
                       key: r.id,
-                      class: normalizeClass(["exp-range-row", { cogs: r.group === "cogs", zero: !r.amount }])
+                      class: normalizeClass(["exp-range-row", { cogs: r.group === "cogs", legacy: r.group === "unclassified", zero: !r.amount }])
                     }, [
                       createBaseVNode("span", _hoisted_37, [
                         createBaseVNode("i", {
@@ -1865,7 +2076,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                         }, null, 4),
                         createTextVNode(toDisplayString(r.name), 1)
                       ]),
-                      r.group !== "cogs" ? (openBlock(), createElementBlock("span", _hoisted_38, [
+                      r.group === "opex" ? (openBlock(), createElementBlock("span", _hoisted_38, [
                         createBaseVNode("b", {
                           style: normalizeStyle({ width: r.width + "%", background: r.color })
                         }, null, 4)
@@ -1875,7 +2086,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     ], 2);
                   }), 128))
                 ]),
-                createBaseVNode("div", _hoisted_42, " 六项按各自占「期间费用」的比例；" + toDisplayString(cogsName.value) + "单独一档，不跟它们同尺 ", 1)
+                createBaseVNode("div", _hoisted_42, " 各期间费用类别按同一比例尺展示；遗留/未分类与" + toDisplayString(cogsName.value) + "各自单列，比例分别按本档计算。 ", 1)
               ])
             ])) : (openBlock(), createElementBlock("aside", _hoisted_43, [
               createBaseVNode("div", _hoisted_44, [
@@ -1885,33 +2096,46 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                 createBaseVNode("span", _hoisted_46, toDisplayString(unref(formatGoalNumber)(daySum.value.total)) + toDisplayString(unit.value) + " · " + toDisplayString(daySum.value.count) + " 笔 ", 1)
               ]),
               createBaseVNode("div", _hoisted_47, [
+                createBaseVNode("div", { class: "exp-add-head" }, [
+                  createBaseVNode("span", { class: "exp-add-title" }, "记一笔"),
+                  createBaseVNode("span", { class: "exp-add-date" }, toDisplayString(unref(state).selected), 1)
+                ]),
                 createBaseVNode("div", _hoisted_48, [
-                  (openBlock(true), createElementBlock(Fragment, null, renderList(cats.value, (c) => {
+                  (openBlock(true), createElementBlock(Fragment, null, renderList(activeCats.value, (c) => {
                     return openBlock(), createElementBlock("button", {
                       key: c.id,
+                      type: "button",
                       class: normalizeClass(["exp-cat", { on: draft.value.cat === c.id, cogs: c.group === "cogs" }]),
                       style: normalizeStyle({ "--cc": c.color }),
+                      "aria-pressed": draft.value.cat === c.id,
                       onClick: ($event) => pickCat(c.id)
                     }, toDisplayString(c.name), 15, _hoisted_49);
                   }), 128))
                 ]),
                 createBaseVNode("div", _hoisted_50, [
-                  withDirectives(createBaseVNode("input", {
-                    ref_key: "amountEl",
-                    ref: amountEl,
-                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => draft.value.amount = $event),
-                    class: "exp-amount",
-                    type: "number",
-                    step: "any",
-                    placeholder: `金额（${unit.value}），回车记账`,
-                    onKeyup: withKeys(submit, ["enter"])
-                  }, null, 40, _hoisted_51), [
-                    [vModelText, draft.value.amount]
+                  createBaseVNode("div", { class: "exp-money" }, [
+                    createBaseVNode("span", { class: "exp-currency", "aria-hidden": "true" }, toDisplayString(unit.value), 1),
+                    withDirectives(createBaseVNode("input", {
+                      ref_key: "amountEl",
+                      ref: amountEl,
+                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => draft.value.amount = $event),
+                      class: "exp-amount",
+                      type: "number",
+                      step: "any",
+                      inputmode: "decimal",
+                      "aria-label": `记账金额，单位${unit.value}`,
+                      placeholder: "输入金额",
+                      onKeyup: withKeys(submit, ["enter"])
+                    }, null, 40, _hoisted_51), [
+                      [vModelText, draft.value.amount]
+                    ])
                   ]),
                   createBaseVNode("button", {
-                    class: "primary",
+                    type: "button",
+                    class: "primary exp-submit",
+                    disabled: !canSubmit.value,
                     onClick: submit
-                  }, "记账")
+                  }, "记账", 8, ["disabled"])
                 ]),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => draft.value.note = $event),
@@ -1921,7 +2145,12 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                 }, null, 512), [
                   [vModelText, draft.value.note]
                 ]),
-                flash.value ? (openBlock(), createElementBlock("div", _hoisted_52, toDisplayString(flash.value), 1)) : createCommentVNode("", true)
+                flash.value ? (openBlock(), createElementBlock("div", {
+                  key: 0,
+                  class: "exp-flash",
+                  role: "status",
+                  "aria-live": "polite"
+                }, toDisplayString(flash.value), 1)) : createCommentVNode("", true)
               ]),
               createBaseVNode("div", _hoisted_53, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(dayRows.value, (e) => {
@@ -1931,7 +2160,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                   }, [
                     createBaseVNode("span", {
                       class: "dot",
-                      style: normalizeStyle({ background: unref(expenseCat)(e.cat)?.color })
+                      style: normalizeStyle({ background: catById.value.get(e.cat)?.color || "#7f8b9a" })
                     }, null, 4),
                     createBaseVNode("span", _hoisted_54, toDisplayString(catName(e.cat)), 1),
                     e.note ? (openBlock(), createElementBlock("span", {
@@ -1939,15 +2168,17 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                       class: "note",
                       title: e.note
                     }, toDisplayString(e.note), 9, _hoisted_55)) : (openBlock(), createElementBlock("span", _hoisted_56)),
-                    createBaseVNode("span", _hoisted_57, toDisplayString(unref(formatGoalNumber)(e.amount)), 1),
+                    createBaseVNode("span", _hoisted_57, toDisplayString(unref(formatGoalNumber)(e.amount)) + toDisplayString(unit.value), 1),
                     loggedAt(e) ? (openBlock(), createElementBlock("span", {
                       key: 2,
                       class: normalizeClass(["at", { late: loggedAt(e).late }]),
                       title: loggedAt(e).late ? `这笔算在 ${e.date}，实际是登记时间那天补录的` : "登记时间"
                     }, toDisplayString(loggedAt(e).text), 11, _hoisted_58)) : createCommentVNode("", true),
                     createBaseVNode("button", {
+                      type: "button",
                       class: "del",
                       title: "删除这一笔",
+                      "aria-label": `删除${catName(e.cat)} ${formatGoalNumber(e.amount)}${unit.value}`,
                       onClick: ($event) => removeEntry(e)
                     }, [
                       createVNode(_sfc_main$b, {
@@ -1957,64 +2188,126 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     ], 8, _hoisted_59)
                   ]);
                 }), 128)),
-                !dayRows.value.length ? (openBlock(), createElementBlock("div", _hoisted_60, " 这一天还没记账。选个类别，填金额回车。 ")) : createCommentVNode("", true)
+                !dayRows.value.length ? (openBlock(), createElementBlock("div", _hoisted_60, toDisplayString(unref(state).selected) + " 还没有记录。选个类别，输入金额即可记第一笔。", 1)) : createCommentVNode("", true)
               ])
             ]))
           ]),
           catForm.value ? (openBlock(), createElementBlock("div", {
             key: 0,
             class: "cat-mask",
-            onClick: _cache[11] || (_cache[11] = withModifiers(($event) => catForm.value = null, ["self"]))
+            onClick: _cache[11] || (_cache[11] = withModifiers(closeCatForm, ["self"]))
           }, [
             createBaseVNode("div", {
               class: "cat-dlg",
-              onKeyup: _cache[10] || (_cache[10] = withKeys(($event) => catForm.value = null, ["esc"]))
+              role: "dialog",
+              "aria-modal": "true",
+              "aria-labelledby": "expense-category-dialog-title",
+              tabindex: "-1",
+              onKeydown: onCatDialogKeydown
             }, [
-              _cache[22] || (_cache[22] = createBaseVNode("div", { class: "cat-dlg-head" }, "修改类别名称", -1)),
+              _cache[22] || (_cache[22] = createBaseVNode("div", { id: "expense-category-dialog-title", class: "cat-dlg-head" }, "管理记账类别", -1)),
               _cache[23] || (_cache[23] = createBaseVNode("p", { class: "cat-dlg-tip" }, [
-                createTextVNode(" 只改显示名称，"),
-                createBaseVNode("b", null, "已记的账一条都不受影响"),
-                createTextVNode("（明细存的是类别编号，不是名字）。"),
+                createTextVNode(" 每本台账可独立新增、改名和停用期间费用类别。"),
                 createBaseVNode("br"),
-                createTextVNode(" 颜色和分组（六项合在一起算、最后一项单列）不变——那是金额量级决定的，跟叫什么无关。 留空则恢复默认名。 ")
+                createBaseVNode("b", null, "停用不是删除："),
+                createTextVNode("旧账、汇总和 Excel 对账仍会保留；固定的货款单列不会被停用。")
               ], -1)),
+              createBaseVNode("div", { class: "cat-dlg-add" }, [
+                withDirectives(createBaseVNode("input", {
+                  "onUpdate:modelValue": ($event) => catForm.value.newName = $event,
+                  class: "cat-dlg-input",
+                  maxlength: unref(MAX_CAT_NAME),
+                  placeholder: "新增期间费用类别",
+                  "aria-label": "新类别名称",
+                  disabled: catForm.value.busy,
+                  onKeyup: withKeys(addCategoryFromForm, ["enter"])
+                }, null, 40, _cat_add_input_props), [
+                  [vModelText, catForm.value.newName]
+                ]),
+                createBaseVNode("button", {
+                  type: "button",
+                  class: "primary",
+                  disabled: catForm.value.busy || !String(catForm.value.newName || "").trim(),
+                  onClick: addCategoryFromForm
+                }, "新增", 8, _cat_add_button_props)
+              ]),
+              catForm.value.error ? (openBlock(), createElementBlock("div", {
+                key: 0,
+                class: "cat-dlg-error",
+                role: "alert"
+              }, toDisplayString(catForm.value.error), 1)) : createCommentVNode("", true),
               createBaseVNode("div", _hoisted_61, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(cats.value, (c) => {
-                  return openBlock(), createElementBlock("label", {
+                  return openBlock(), createElementBlock("div", {
                     key: c.id,
-                    class: "cat-dlg-row"
+                    class: normalizeClass(["cat-dlg-row", { archived: c.archivedAt }])
                   }, [
                     createBaseVNode("i", {
                       class: "swatch",
                       style: normalizeStyle({ background: c.color })
                     }, null, 4),
-                    createBaseVNode("span", _hoisted_62, toDisplayString(c.group === "cogs" ? "单列" : "费用"), 1),
+                    createBaseVNode("span", _hoisted_62, toDisplayString(c.group === "cogs" ? "货款单列" : c.group === "unclassified" ? "遗留" : "期间费用"), 1),
                     withDirectives(createBaseVNode("input", {
-                      "onUpdate:modelValue": ($event) => catForm.value[c.id] = $event,
+                      "onUpdate:modelValue": ($event) => catForm.value.names[c.id] = $event,
                       class: "cat-dlg-input",
                       maxlength: unref(MAX_CAT_NAME),
-                      placeholder: unref(EXPENSE_CATS).find((d) => d.id === c.id)?.name
+                      placeholder: unref(EXPENSE_CATS).find((d) => d.id === c.id)?.name || "类别名称",
+                      "aria-label": `${c.name}的新名称`,
+                      disabled: catForm.value.busy
                     }, null, 8, _hoisted_63), [
-                      [vModelText, catForm.value[c.id]]
+                      [vModelText, catForm.value.names[c.id]]
                     ]),
-                    createBaseVNode("span", _hoisted_64, toDisplayString((catForm.value[c.id] || "").slice(0, 2) || "—"), 1),
-                    createBaseVNode("button", {
-                      class: "ghost",
-                      title: "恢复这一项的默认名",
-                      onClick: withModifiers(($event) => resetCatName(c.id), ["prevent"])
-                    }, " 默认 ", 8, _hoisted_65)
-                  ]);
+                    createBaseVNode("div", { class: "cat-dlg-meta" }, [
+                      createBaseVNode("span", _hoisted_64, toDisplayString((catForm.value.names[c.id] || "").slice(0, 2) || "—"), 1),
+                      createBaseVNode("span", { class: "cat-dlg-usage" }, toDisplayString(categoryUsage(c.id).count) + " 笔 · " + toDisplayString(unref(formatGoalNumber)(categoryUsage(c.id).amount)) + toDisplayString(unit.value), 1),
+                      c.group === "unclassified" ? (openBlock(), createElementBlock("span", { key: 0, class: "cat-dlg-status protected" }, "历史保留")) : c.archivedAt ? (openBlock(), createElementBlock("span", { key: 1, class: "cat-dlg-status" }, "已停用")) : createCommentVNode("", true)
+                    ]),
+                    createBaseVNode("div", { class: "cat-dlg-actions-inline" }, [
+                      unref(EXPENSE_CATS).some((d) => d.id === c.id) ? (openBlock(), createElementBlock("button", {
+                        key: 0,
+                        type: "button",
+                        class: "ghost",
+                        title: "恢复这一项的默认名称",
+                        disabled: catForm.value.busy,
+                        onClick: ($event) => resetCatName(c.id)
+                      }, "默认", 8, _cat_manage_action_props)) : createCommentVNode("", true),
+                      c.group === "unclassified" ? (openBlock(), createElementBlock("span", {
+                        key: 1,
+                        class: "cat-dlg-status protected"
+                      }, "仅供查看")) : c.archivedAt ? (openBlock(), createElementBlock("button", {
+                        key: 2,
+                        type: "button",
+                        class: "ghost",
+                        disabled: catForm.value.busy,
+                        onClick: ($event) => restoreCategoryFromForm(c)
+                      }, "恢复", 8, _cat_manage_action_props)) : c.group === "opex" ? (openBlock(), createElementBlock("button", {
+                        key: 3,
+                        type: "button",
+                        class: "ghost cat-dlg-remove",
+                        title: "安全删除：停用后保留历史记录",
+                        disabled: catForm.value.busy,
+                        onClick: ($event) => archiveCategoryFromForm(c)
+                      }, "停用", 8, _cat_manage_action_props)) : (openBlock(), createElementBlock("span", {
+                        key: 4,
+                        class: "cat-dlg-status protected"
+                      }, "固定"))
+                    ])
+                  ], 2);
                 }), 128))
               ]),
               createBaseVNode("div", _hoisted_66, [
                 createBaseVNode("button", {
+                  type: "button",
                   class: "ghost",
-                  onClick: _cache[9] || (_cache[9] = ($event) => catForm.value = null)
-                }, "取消"),
+                  disabled: catForm.value.busy,
+                  onClick: _cache[9] || (_cache[9] = closeCatForm)
+                }, "取消", 8, ["disabled"]),
                 createBaseVNode("button", {
+                  type: "button",
                   class: "primary",
+                  disabled: catForm.value.busy,
                   onClick: saveCatForm
-                }, "保存")
+                }, toDisplayString(catForm.value.busy ? "处理中…" : "保存名称"), 9, ["disabled"])
               ])
             ], 32)
           ])) : createCommentVNode("", true),
@@ -2030,6 +2323,14 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                 createBaseVNode("em", null, toDisplayString(unit.value), 1)
               ]),
               createBaseVNode("div", _hoisted_72, toDisplayString(vsText(opexVs.value)), 1),
+              curSum.value.unclassified ? (openBlock(), createElementBlock("div", {
+                key: 1,
+                class: "big legacy"
+              }, [
+                createBaseVNode("i", null, "遗留/未分类"),
+                createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(curSum.value.unclassified)), 1),
+                createBaseVNode("em", null, toDisplayString(unit.value), 1)
+              ])) : createCommentVNode("", true),
               createBaseVNode("div", _hoisted_73, [
                 createBaseVNode("i", null, toDisplayString(cogsName.value), 1),
                 createBaseVNode("b", null, toDisplayString(unref(formatGoalNumber)(curSum.value.cogs)), 1),
@@ -2039,8 +2340,8 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
             ]),
             createBaseVNode("section", _hoisted_75, [
               _cache[25] || (_cache[25] = createBaseVNode("div", { class: "exp-card-head" }, [
-                createBaseVNode("span", null, "六项费用构成"),
-                createBaseVNode("span", { class: "dim" }, "条长按六项内部最大值")
+                createBaseVNode("span", null, "期间费用构成"),
+                createBaseVNode("span", { class: "dim" }, "条长按类别内部最大值")
               ], -1)),
               createBaseVNode("div", _hoisted_76, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(ranking.value, (r) => {
@@ -2063,7 +2364,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
             createBaseVNode("section", _hoisted_81, [
               createBaseVNode("div", { class: "exp-card-head" }, [
                 createBaseVNode("span", null, "最近 " + toDisplayString(TREND_PERIODS) + " 期"),
-                _cache[26] || (_cache[26] = createBaseVNode("span", { class: "dim" }, "两排各用各的比例尺", -1))
+                _cache[26] || (_cache[26] = createBaseVNode("span", { class: "dim" }, "各排使用独立比例尺", -1))
               ]),
               createBaseVNode("div", _hoisted_82, [
                 createBaseVNode("div", _hoisted_83, [
@@ -2114,6 +2415,33 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     }), 128))
                   ], 8, _hoisted_89))
                 ]),
+                trend.value.maxUnclassified ? (openBlock(), createElementBlock("div", {
+                  key: 0,
+                  class: "exp-trend-row legacy"
+                }, [
+                  createBaseVNode("span", { class: "cap" }, [
+                    createTextVNode("遗留/未分类", 1),
+                    createBaseVNode("i", null, "峰值 " + toDisplayString(unref(formatGoalNumber)(trend.value.maxUnclassified)), 1)
+                  ]),
+                  (openBlock(), createElementBlock("svg", {
+                    class: "spark",
+                    viewBox: `0 0 ${TREND_VB_W} ${TREND_VB_H}`,
+                    preserveAspectRatio: "none"
+                  }, [
+                    (openBlock(true), createElementBlock(Fragment, null, renderList(trend.value.rows, (t) => {
+                      return openBlock(), createElementBlock("rect", {
+                        key: t.key,
+                        class: normalizeClass(["legacy", { now: t.now, empty: !t.unclassified }]),
+                        x: t.unclassifiedBar.x,
+                        y: t.unclassifiedBar.y,
+                        width: t.unclassifiedBar.w,
+                        height: t.unclassifiedBar.h
+                      }, [
+                        createBaseVNode("title", null, toDisplayString(t.label) + "　遗留/未分类 " + toDisplayString(unref(formatGoalNumber)(t.unclassified)) + toDisplayString(unit.value), 1)
+                      ], 10, _hoisted_86);
+                    }), 128))
+                  ], 8, _hoisted_85))
+                ])) : createCommentVNode("", true),
                 createBaseVNode("div", _hoisted_91, [
                   createBaseVNode("span", null, toDisplayString(trend.value.rows[0]?.label), 1),
                   _cache[28] || (_cache[28] = createBaseVNode("span", { style: { "flex": "1" } }, null, -1)),
@@ -2633,7 +2961,7 @@ const _sfc_main = {
     }
     function onKey(e) {
       const tag = e.target?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag) || e.target?.isContentEditable || e.target?.getAttribute?.("role")) return;
       if (e.key === "Escape") {
         if (state.editing) actions.closeEditor();
         else if (state.settingsOpen) state.settingsOpen = false;

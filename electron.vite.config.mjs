@@ -10,7 +10,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: r('src/main/index.js'),
-          'task-time': r('src/main/task-time.js')
+          'task-time': r('src/main/task-time.js'),
+          'expense-categories': r('src/main/expense-categories.js')
         }
       }
     }
