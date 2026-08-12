@@ -1,0 +1,2784 @@
+
+.scrolling-row[data-v-145098b6] {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.scrolling-row-probe[data-v-145098b6],
+.scrolling-row-static[data-v-145098b6],
+.scrolling-row-content[data-v-145098b6] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+}
+.scrolling-row-probe[data-v-145098b6] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+.scrolling-row-track[data-v-145098b6] {
+  display: flex;
+  width: max-content;
+  /*
+   * 提升成独立合成层。实测：滚动时主线程从 4.2% 降到 0.2%（活儿挪给了合成器线程），
+   * 总 CPU 略降，但更重要的是滚动期间点击、输入不再被抢占。
+   */
+  will-change: transform;
+  animation: scrolling-row-marquee-145098b6 var(--scrolling-row-duration) linear infinite;
+}
+
+/* 窗口收进托盘或最小化时没人看，停掉滚动，别让它一直烧 CPU */
+html.app-hidden {
+  animation-play-state: paused;
+}
+.scrolling-row-content[data-v-145098b6] {
+  flex: none;
+  padding-right: 24px;
+}
+@keyframes scrolling-row-marquee-145098b6 {
+0%,
+  12% {
+    transform: translateX(0);
+}
+88%,
+  100% {
+    transform: translateX(-50%);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.scrolling-row-track[data-v-145098b6] {
+    animation: none;
+}
+}
+
+.scrolling-title[data-v-9e639b1b] {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.scrolling-title-probe[data-v-9e639b1b] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.scrolling-title-static[data-v-9e639b1b] {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.scrolling-title-track[data-v-9e639b1b] {
+  display: flex;
+  width: max-content;
+  /* 同 ScrollingRow：提升合成层，把逐帧的活儿从主线程挪到合成器线程 */
+  will-change: transform;
+  animation: scrolling-title-marquee-9e639b1b 8s linear infinite;
+}
+
+/* 窗口收进托盘或最小化时没人看，停掉滚动，别让它一直烧 CPU */
+html.app-hidden {
+  animation-play-state: paused;
+}
+.scrolling-title-track span[data-v-9e639b1b] {
+  flex: none;
+  padding-right: 28px;
+}
+@keyframes scrolling-title-marquee-9e639b1b {
+0%,
+  12% {
+    transform: translateX(0);
+}
+88%,
+  100% {
+    transform: translateX(-50%);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.scrolling-title-track[data-v-9e639b1b] {
+    animation: none;
+}
+}
+
+/* 小组件是独立窗口，样式不走主界面那套布局，单独写在这里 */
+.widget-body {
+  background: transparent;
+}
+.wx {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      390px 230px at 104% -9%,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      280px 190px at -14% 38%,
+      color-mix(in srgb, white 3%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(165deg, var(--bg-elev) 0%, var(--bg) 52%, color-mix(in srgb, var(--bg) 94%, black) 100%);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, var(--border));
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 20px 48px rgba(0, 0, 0, 0.42);
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ---------- 顶栏 ---------- */
+.wx-bar {
+  display: flex;
+  align-items: center;
+  height: 27px;
+  padding: 0 8px;
+  gap: 3px;
+  flex: none;
+}
+.wx-drag {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+.wx.locked .wx-drag {
+  -webkit-app-region: no-drag;
+}
+.wx-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  -webkit-app-region: no-drag;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.wx-icon:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.wx-icon:disabled {
+  pointer-events: none;
+  opacity: 0.58;
+}
+.wx-text-btn {
+  width: auto;
+  padding: 0 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+}
+.wx-text-btn.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+/* ---------- 日期头 ---------- */
+.wx-head {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 12px 10px;
+  padding: 5px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--border-soft));
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elev) 96%, white),
+      color-mix(in srgb, var(--bg-soft) 55%, var(--bg-elev))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 10px 28px color-mix(in srgb, black 7%, transparent);
+}
+
+/* 主行：日期 / 天气 / 时钟 */
+.wx-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 84px;
+  align-items: center;
+  min-height: 76px;
+  padding: 8px 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 11%, var(--border-soft));
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      120px 86px at -4% -22%,
+      color-mix(in srgb, var(--accent) 15%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      108px 68px at 103% -14%,
+      color-mix(in srgb, white 8%, transparent),
+      transparent 74%
+    ),
+    linear-gradient(
+      132deg,
+      color-mix(in srgb, var(--bg-elev) 98%, white) 0%,
+      color-mix(in srgb, var(--bg-elev) 97%, var(--bg-soft)) 44%,
+      color-mix(in srgb, var(--bg-soft) 68%, var(--bg-elev)) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 3%, transparent);
+}
+.wx-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 62%, white) 18%,
+    color-mix(in srgb, white 35%, transparent) 46%,
+    transparent 82%
+  );
+  opacity: 0.9;
+}
+.wx-hero::after {
+  content: '';
+  position: absolute;
+  top: -34px;
+  left: 58%;
+  width: 54px;
+  height: 146px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, white 4%, transparent), transparent);
+  transform: rotate(18deg);
+}
+.wx-dateblock {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 8px;
+}
+.wx-dayframe {
+  width: 51px;
+  height: 58px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-soft));
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 13%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent) 4%, var(--bg-soft))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    0 5px 14px color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.wx-dayframe > span {
+  color: color-mix(in srgb, var(--accent) 62%, var(--text-dim));
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  transform: translateX(0.7px);
+}
+.wx-day {
+  margin-top: 3px;
+  font-size: 32px;
+  font-weight: 760;
+  line-height: 0.9;
+  letter-spacing: -1.8px;
+  background: linear-gradient(145deg, #8bbaff 0%, var(--accent) 58%, #3978e3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  flex: none;
+}
+.wx-datecol {
+  min-width: 0;
+  flex: 1;
+}
+.wx-date {
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1;
+  letter-spacing: 0.25px;
+}
+.wx-week {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  white-space: nowrap;
+}
+.wx-week b {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.wx-lunar {
+  font-size: 9.5px;
+  color: var(--text-faint);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wx-sep {
+  opacity: 0.45;
+  margin: 0 1px;
+}
+
+/* ---------- 今日天气 ---------- */
+.wx-weather {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: none;
+  width: 96px;
+  height: 60px;
+  min-height: 60px;
+  padding: 0 7px;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  text-align: center;
+  overflow: hidden;
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+.wx-weather::before,
+.wx-right::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--text) 10%, transparent) 28%,
+    color-mix(in srgb, var(--text) 10%, transparent) 72%,
+    transparent
+  );
+}
+.wx-weather:hover {
+  transform: translateY(-1px);
+}
+.wx-weather-k {
+  color: color-mix(in srgb, var(--text) 72%, var(--text-dim));
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: 0.55px;
+}
+.wx-weather-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+  line-height: 1;
+}
+.wx-weather-orb {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-right: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border-soft));
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      color-mix(in srgb, white 18%, transparent),
+      color-mix(in srgb, var(--accent) 8%, transparent)
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+}
+.wx-weather-icon {
+  flex: none;
+  color: var(--accent);
+}
+.wx-weather.is-sunny .wx-weather-orb {
+  border-color: color-mix(in srgb, #f0a52b 22%, var(--border-soft));
+  background: color-mix(in srgb, #f0a52b 9%, transparent);
+}
+.wx-weather.is-rainy .wx-weather-orb,
+.wx-weather.is-stormy .wx-weather-orb {
+  border-color: color-mix(in srgb, #5b9cff 23%, var(--border-soft));
+  background: color-mix(in srgb, #5b9cff 9%, transparent);
+}
+.wx-weather.is-sunny .wx-weather-icon {
+  color: #f0a52b;
+}
+.wx-weather.is-rainy .wx-weather-icon,
+.wx-weather.is-stormy .wx-weather-icon {
+  color: #5b9cff;
+}
+.wx-weather.is-snowy .wx-weather-icon {
+  color: #7bbcff;
+}
+.wx-weather.is-cloudy .wx-weather-icon {
+  color: var(--text-dim);
+}
+.wx-weather-main b {
+  font-size: 19px;
+  font-weight: 760;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-weather-main i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-left: 1px;
+}
+.wx-weather-meta {
+  margin-top: 3px;
+  color: color-mix(in srgb, var(--text) 76%, var(--text-dim));
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.05px;
+  white-space: nowrap;
+}
+.wx-weather-state {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.wx-weather.is-error .wx-weather-state {
+  color: var(--warn);
+}
+.wx-weather-spin {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wx-weather-spin 0.8s linear infinite;
+}
+@keyframes wx-weather-spin {
+to {
+    transform: rotate(360deg);
+}
+}
+.wx-cd-mode {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.wx-jq {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 18%, transparent);
+  border-radius: 5px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 14px;
+  margin-left: 1px;
+}
+.wx-right {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  padding-left: 9px;
+  text-align: center;
+  justify-self: stretch;
+  flex: none;
+}
+.wx-time-k {
+  margin-bottom: 3px;
+  color: color-mix(in srgb, var(--text) 72%, var(--text-dim));
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: 0.55px;
+}
+.wx-clock {
+  font-size: 26px;
+  font-weight: 680;
+  line-height: 1;
+  letter-spacing: -1.1px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-donerow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: color-mix(in srgb, var(--text) 72%, var(--text-dim));
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 5px;
+  white-space: nowrap;
+}
+.wx-donerow b {
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--text) 16%, var(--border-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.wx-donerow.has {
+  color: var(--ok);
+}
+.wx-donerow.has b {
+  border-color: color-mix(in srgb, var(--ok) 26%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
+}
+
+/* 统计带：本年第几周 / 年内还剩 / 今日待办 / 时间节点 */
+.wx-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 7px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--text) 5%, var(--border-soft));
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text) 3%, var(--bg-soft)),
+      color-mix(in srgb, var(--bg-soft) 76%, var(--bg-elev))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 3%, transparent);
+}
+.wx-stat {
+  position: relative;
+  text-align: center;
+  padding: 0 4px;
+}
+.wx-stat + .wx-stat {
+  border-left: 0;
+}
+.wx-stat + .wx-stat::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--text) 8%, transparent) 28%,
+    color-mix(in srgb, var(--text) 8%, transparent) 72%,
+    transparent
+  );
+}
+.wx-stat-k {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  color: color-mix(in srgb, var(--text) 60%, var(--text-faint));
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.85px;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 color-mix(in srgb, white 24%, transparent);
+}
+.wx-stat-v {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  white-space: nowrap;
+}
+.wx-stat-v b {
+  font-size: 16.5px;
+  font-weight: 750;
+  color: var(--accent);
+  margin: 0 2px;
+  letter-spacing: -0.3px;
+}
+/* 年底了给个暖色提示 */
+.wx-stat-v.warn b {
+  color: var(--warn);
+}
+.wx-stat-v.clear {
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 17px;
+  margin-top: 6px;
+}
+.wx-cd-stat {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.wx-cd-stat:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.wx-cd-stat-k {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-cd-stat-v b {
+  min-width: 2ch;
+}
+.wx-cd-stat.is-past .wx-cd-stat-v b {
+  color: var(--ok);
+}
+.wx-cd-stat-today {
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+}
+.wx-cd-stat-empty {
+  min-height: 31px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+}
+.wx-cd-stat-empty span:last-child {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+.wx-weather {
+    transition: none;
+}
+.wx-weather-spin {
+    animation: none;
+}
+}
+
+/* ---------- 专注办公 ---------- */
+.wx-focusbar {
+  --focus-color: #6d8fff;
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 63px 72px 51px;
+  align-items: center;
+  gap: 4px;
+  height: 50px;
+  margin: -2px 12px 8px;
+  padding: 5px 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 22%, var(--border-soft));
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      130px 70px at 4% -20%,
+      color-mix(in srgb, var(--focus-color) 14%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-elev) 97%, white),
+      color-mix(in srgb, var(--focus-color) 4%, var(--bg-soft))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 13%, transparent),
+    0 8px 22px color-mix(in srgb, black 6%, transparent);
+}
+.wx-focusbar.is-running {
+  --focus-color: #5b86ff;
+}
+.wx-focusbar.is-paused {
+  --focus-color: #e9a12a;
+}
+.wx-focusbar::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -42px;
+  right: 70px;
+  width: 128px;
+  height: 82px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--focus-color) 7%, transparent);
+  filter: blur(20px);
+  pointer-events: none;
+}
+.wx-focusbar::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  bottom: 0;
+  width: min(var(--focus-progress), calc(100% - 24px));
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--focus-color) 62%, white),
+    var(--focus-color)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--focus-color) 45%, transparent);
+  transition: width 0.28s linear;
+}
+.wx-focusbar button {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.wx-focus-info {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 3px;
+  text-align: left;
+  border-radius: 9px;
+}
+.wx-focus-orb {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--focus-color);
+  border: 1px solid color-mix(in srgb, var(--focus-color) 28%, var(--border-soft));
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 32% 24%, color-mix(in srgb, white 24%, transparent), transparent 38%),
+    color-mix(in srgb, var(--focus-color) 10%, var(--bg-elev));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+    0 4px 11px color-mix(in srgb, var(--focus-color) 13%, transparent);
+}
+.wx-focusbar.is-running .wx-focus-orb::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 35%, transparent);
+  border-radius: 12px;
+  animation: wx-focus-breathe 1.8s ease-out infinite;
+}
+.wx-focus-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.wx-focus-copy b {
+  overflow: hidden;
+  color: var(--text);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: 0.15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-focus-copy small {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text) 72%, var(--text-dim));
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: 0.08px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-focus-clock {
+  color: color-mix(in srgb, var(--focus-color) 78%, var(--text));
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1;
+  letter-spacing: -0.35px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-focus-summary {
+  display: flex;
+  min-width: 0;
+  height: 30px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+.wx-focus-summary span {
+  color: color-mix(in srgb, var(--text) 68%, var(--text-dim));
+  font-size: 8.5px;
+  font-weight: 650;
+  line-height: 1.15;
+}
+.wx-focus-summary b {
+  max-width: 68px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--focus-color) 74%, var(--text));
+  font-size: 10px;
+  font-weight: 740;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-focus-primary {
+  display: flex;
+  height: 29px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 5px;
+  color: #fff;
+  border: 1px solid color-mix(in srgb, white 17%, var(--focus-color));
+  border-radius: 9px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--focus-color) 78%, white),
+    color-mix(in srgb, var(--focus-color) 88%, #3d63c8)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 5px 12px color-mix(in srgb, var(--focus-color) 24%, transparent);
+  font-size: 9px;
+  font-weight: 680;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+.wx-focus-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.wx-form.wx-focus-panel {
+  --focus-color: #6d8fff;
+  position: relative;
+  max-height: calc(100vh - 28px);
+  padding: 14px;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--focus-color) 24%, var(--border));
+  border-radius: 19px;
+  background:
+    radial-gradient(
+      260px 180px at 96% -8%,
+      color-mix(in srgb, var(--focus-color) 12%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(150deg, var(--bg-elev), color-mix(in srgb, var(--bg) 72%, var(--bg-elev)));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 15%, transparent),
+    0 26px 58px rgba(0, 0, 0, 0.34);
+}
+.wx-form.wx-focus-panel.is-running {
+  --focus-color: #5b86ff;
+}
+.wx-form.wx-focus-panel.is-paused {
+  --focus-color: #e9a12a;
+}
+.wx-focus-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--focus-color), transparent);
+  opacity: 0.55;
+}
+.wx-focus-panel-head {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.wx-focus-panel-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--focus-color);
+  border: 1px solid color-mix(in srgb, var(--focus-color) 25%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--focus-color) 10%, var(--bg-soft));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 15%, transparent);
+}
+.wx-focus-panel-head > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.wx-focus-panel-head b {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 730;
+  letter-spacing: 0.2px;
+}
+.wx-focus-panel-head small {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 9px;
+}
+.wx-focus-panel-head i {
+  padding: 4px 7px;
+  color: var(--text-faint);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-soft) 74%, transparent);
+  font-size: 8.5px;
+  font-style: normal;
+  font-weight: 620;
+  white-space: nowrap;
+}
+.wx-focus-panel-head i.is-running,
+.wx-focus-panel-head i.is-paused {
+  color: var(--focus-color);
+  border-color: color-mix(in srgb, var(--focus-color) 26%, var(--border));
+  background: color-mix(in srgb, var(--focus-color) 9%, var(--bg-soft));
+}
+.wx-focus-hero {
+  display: grid;
+  grid-template-columns: 138px minmax(0, 1fr);
+  align-items: center;
+  min-height: 136px;
+  margin-bottom: 11px;
+  padding: 8px 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 18%, var(--border-soft));
+  border-radius: 16px;
+  background:
+    radial-gradient(
+      138px 105px at 19% 48%,
+      color-mix(in srgb, var(--focus-color) 9%, transparent),
+      transparent 72%
+    ),
+    color-mix(in srgb, var(--bg-soft) 70%, var(--bg-elev));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+.wx-focus-ring {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 59%, color-mix(in srgb, white 11%, transparent) 60%, transparent 62%),
+    conic-gradient(
+      from -90deg,
+      var(--focus-color) 0deg,
+      color-mix(in srgb, var(--focus-color) 72%, white) var(--focus-deg),
+      color-mix(in srgb, var(--text) 8%, transparent) var(--focus-deg),
+      color-mix(in srgb, var(--text) 8%, transparent) 360deg
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--focus-color) 10%, transparent),
+    0 12px 28px color-mix(in srgb, var(--focus-color) 12%, transparent);
+}
+.wx-focus-ring::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 35% 24%, color-mix(in srgb, white 8%, transparent), transparent 46%),
+    var(--bg-elev);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+}
+.wx-focus-ring > div {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.wx-focus-ring span {
+  color: var(--text-faint);
+  font-size: 8.5px;
+  letter-spacing: 0.45px;
+}
+.wx-focus-ring b {
+  margin: 3px 0 2px;
+  color: color-mix(in srgb, var(--focus-color) 72%, var(--text));
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  font-size: 24px;
+  font-weight: 730;
+  line-height: 1;
+  letter-spacing: -0.7px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-focus-ring small {
+  color: var(--text-dim);
+  font-size: 8px;
+}
+.wx-focus-today {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 84px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-left: 12px;
+}
+.wx-focus-today::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border), transparent);
+}
+.wx-focus-today > span {
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.65px;
+}
+.wx-focus-today b {
+  max-width: 100%;
+  margin: 7px 0 5px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 730;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-focus-today small {
+  color: var(--text-dim);
+  font-size: 8.5px;
+}
+.wx-focus-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 18px;
+  margin-bottom: 5px;
+  padding: 0 2px;
+}
+.wx-focus-section-title > span {
+  color: var(--text-dim);
+  font-size: 9.5px;
+  font-weight: 670;
+}
+.wx-focus-section-title > small {
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.wx-focus-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.wx-focus-presets button,
+.wx-focus-presets label {
+  height: 43px;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-soft) 76%, var(--bg-elev));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 9%, transparent);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.wx-focus-presets button:hover:not(:disabled),
+.wx-focus-presets label:hover:not(.disabled) {
+  border-color: color-mix(in srgb, var(--focus-color) 35%, var(--border));
+  transform: translateY(-1px);
+}
+.wx-focus-presets button.on {
+  color: var(--focus-color);
+  border-color: color-mix(in srgb, var(--focus-color) 45%, var(--border));
+  background: color-mix(in srgb, var(--focus-color) 10%, var(--bg-elev));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 13%, transparent),
+    0 5px 12px color-mix(in srgb, var(--focus-color) 10%, transparent);
+}
+.wx-focus-presets button:disabled,
+.wx-focus-presets label.disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+.wx-focus-presets b {
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1;
+}
+.wx-focus-presets span {
+  margin-top: 3px;
+  font-size: 8px;
+}
+.wx-focus-presets input {
+  width: 100%;
+  padding: 0 3px;
+  color: var(--focus-color);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.wx-focus-presets input::-webkit-inner-spin-button,
+.wx-focus-presets input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+.wx-focus-history {
+  min-height: 24px;
+  padding: 7px 8px 6px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, var(--border-soft));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-soft) 58%, transparent);
+}
+.wx-focus-history .wx-focus-section-title {
+  margin-bottom: 2px;
+}
+.wx-focus-history-list {
+  display: grid;
+  max-height: 78px;
+  overflow: hidden;
+}
+.wx-focus-history-list > div {
+  display: grid;
+  grid-template-columns: 47px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 19px;
+  color: var(--text-faint);
+  border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  font-size: 8.5px;
+}
+.wx-focus-history-list b {
+  color: var(--text-dim);
+  font-weight: 650;
+}
+.wx-focus-history-list i {
+  color: color-mix(in srgb, var(--focus-color) 75%, var(--text-dim));
+  font-size: 8px;
+  font-style: normal;
+}
+.wx-focus-actions {
+  align-items: center;
+  margin-top: 10px;
+}
+.wx-focus-action-primary {
+  display: inline-flex;
+  min-width: 94px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-color: var(--focus-color) !important;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--focus-color) 80%, white),
+    var(--focus-color)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 7px 16px color-mix(in srgb, var(--focus-color) 22%, transparent);
+}
+@keyframes wx-focus-breathe {
+0% {
+    opacity: 0.72;
+    transform: scale(0.92);
+}
+75%,
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.wx-focusbar::after,
+  .wx-focus-primary,
+  .wx-focus-presets button,
+  .wx-focus-presets label {
+    transition: none;
+}
+.wx-focusbar.is-running .wx-focus-orb::after {
+    animation: none;
+}
+}
+
+/* ---------- 长期目标 ---------- */
+.wx-goals {
+  margin: 0 12px 10px;
+  /*
+   * 可收缩（0 1 auto）而不是 flex:none：内容不多时按内容占位，
+   * 内容多到挤掉四象限的保底高度时，由 flex 把这里压回去、body 内部滚动。
+   * 这就是"上限"的来源，不需要再写死一个 max-height。
+   */
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.wx-goals-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+.wx-goals-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.wx-goals-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8bbaff, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.wx-goals-label {
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 720;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+}
+.wx-goals-count {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px 1px;
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border-soft));
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 9%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent) 3%, var(--bg-soft))
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.wx-goals-count b {
+  display: block;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1;
+}
+.wx-goals-count i {
+  display: block;
+  margin-left: 1px;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1;
+}
+.wx-goals-rule {
+  min-width: 14px;
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 10%, transparent),
+    color-mix(in srgb, var(--text) 3%, transparent) 56%,
+    transparent
+  );
+}
+.wx-goals-add {
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 0 8px 0 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 17%, var(--border-soft));
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 8%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent) 3%, var(--bg-soft))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    0 3px 10px color-mix(in srgb, black 5%, transparent);
+  color: color-mix(in srgb, var(--accent) 86%, var(--text));
+  font-size: 9.5px;
+  font-weight: 680;
+  letter-spacing: 0.2px;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.wx-goals-add-icon {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.wx-goals-add:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent) 13%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent) 6%, var(--bg-soft))
+    );
+  transform: translateY(-1px);
+}
+.wx-goals-add:disabled {
+  color: var(--text-faint);
+  cursor: default;
+  opacity: 0.65;
+}
+/*
+ * 高度由 JS 按内容写在行内，这里只负责过渡和裁切。
+ * 曲线用 cubic-bezier(0.22, 0.61, 0.36, 1)：起步快、收尾慢，
+ * 展开录入框那一下不会有"先顿一下再窜出来"的感觉。
+ */
+.wx-goals-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: height 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* 动画途中内容比容器高，auto 会让滚动条闪一下，先按 hidden 裁 */
+.wx-goals-body.settling {
+  overflow-y: hidden;
+}
+/*
+ * 真的装不下时底部渐隐。有这层，被切一半的那行读起来是"下面还有"，
+ * 而不是"显示坏了"——Ray 看到的就是后面这种观感。
+ */
+.wx-goals-body.scrollable {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+}
+.wx-goals-body::-webkit-scrollbar {
+  width: 4px;
+}
+.wx-goals-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+.wx-goals-body {
+    transition: none;
+}
+}
+.wx-goal {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 8px 10px 9px;
+  border: 1px solid color-mix(in srgb, var(--gc) 18%, var(--border));
+  border-radius: 12px;
+  background:
+    linear-gradient(105deg, color-mix(in srgb, white 6%, transparent), transparent 42%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--gc) 7%, var(--bg-elev)) 0%,
+      color-mix(in srgb, var(--bg-soft) 72%, var(--bg-elev)) 54%,
+      color-mix(in srgb, var(--gc) 4%, var(--bg-soft)) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 3%, transparent),
+    0 5px 16px color-mix(in srgb, black 6%, transparent);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+.wx-goal::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 14px;
+  width: 42%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gc) 65%, #fff), transparent);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.wx-goal > * {
+  position: relative;
+  z-index: 1;
+}
+.wx-goal:hover {
+  border-color: color-mix(in srgb, var(--gc) 42%, var(--border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(7, 15, 30, 0.05),
+    0 7px 18px color-mix(in srgb, black 10%, transparent),
+    0 0 16px color-mix(in srgb, var(--gc) 7%, transparent);
+  transform: translateY(-1px);
+}
+.wx-goal-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.wx-goal-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.wx-goal-pct {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 42px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--gc) 24%, var(--border));
+  color: color-mix(in srgb, var(--gc) 82%, var(--text));
+  letter-spacing: -0.3px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.wx-goal-pct b {
+  font-size: 14.5px;
+  font-weight: 780;
+}
+
+/* 累计模式：本期合计。跟百分比同一个位置、同一套字号，两种模式排版才对得齐 */
+.wx-goal-sum {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--gc) 24%, var(--border));
+  color: color-mix(in srgb, var(--gc) 82%, var(--text));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+.wx-goal-sum b {
+  font-size: 14.5px;
+  font-weight: 780;
+}
+.wx-goal-sum i {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.55;
+  margin-left: 2px;
+}
+
+/* 周期标签那一行：左边当期，右边上期对比 */
+.wx-goal-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: -1px 0 5px;
+  font-size: 9.5px;
+  color: var(--text-faint);
+}
+.wx-goal-prev {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 费用台账 ---------------- */
+
+/*
+ * 这一块的小字全部走跟组件其它地方一致的配方：
+ * Segoe UI Variable Text + 字重 640~680 + 正字距 + 颜色往 --text 靠。
+ *
+ * 不是可有可无的装饰——台账一行里塞的小字比别的模块多得多，
+ * 用裸 --text-faint / 默认字重会明显糊一截。字号也一律取整数：
+ * 9.5px 这种半像素在 Windows 的分数缩放下会落在子像素上，糊得最厉害。
+ */
+.wx-goal.ledger,
+.wx-goal.ledger .wx-goal-sub {
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+}
+
+/*
+ * 两个大数并排，费用在左、货款在右，中间一道竖线。
+ * 分开摆是整个功能的主张：它们不是一本账，加在一起那个"总额"没有意义。
+ */
+.wx-led-heads {
+  flex: none; /* 名称那边是 flex:1，这里不让步，长名字去省略号 */
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: auto;
+}
+.wx-led-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-led-head + .wx-led-head {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.wx-led-head i {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 640;
+  letter-spacing: 0.3px;
+  color: color-mix(in srgb, var(--text) 58%, var(--text-dim));
+}
+.wx-led-head b {
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -0.2px;
+}
+.wx-led-head.opex b {
+  color: var(--text);
+}
+.wx-led-head.cogs b {
+  color: #ff8a5c;
+}
+
+/* 周期行：本期标签 · 笔数 · 两个环比 */
+.wx-goal.ledger .wx-goal-sub {
+  gap: 7px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 640;
+  letter-spacing: 0.25px;
+  color: color-mix(in srgb, var(--text) 56%, var(--text-dim));
+}
+.wx-led-n {
+  font-variant-numeric: tabular-nums;
+}
+.wx-led-vs {
+  display: flex;
+  gap: 9px;
+  margin-left: auto;
+}
+.wx-led-vs em {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-style: normal;
+}
+.wx-led-vs em b {
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 74%, var(--text-dim));
+}
+.wx-led-vs em.cogs b {
+  color: #d9884f;
+}
+.wx-led-today {
+  display: inline-flex;
+  align-items: center;
+  min-height: 17px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text));
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.wx-led-today:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: color-mix(in srgb, var(--accent) 88%, white);
+}
+.wx-led-today:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.wx-led-today:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+/* 今天一笔没记——琥珀色，这是唯一需要你现在动手的状态 */
+.wx-led-today.none {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  color: var(--warn);
+}
+/* ▲▼ 单独占一个元素：跟数字之间必须留出间距，否则会被读成首位数字 */
+.wx-led-vs .dir {
+  font-style: normal;
+  font-size: 7px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--text) 42%, var(--text-faint));
+}
+
+/* 七个类别格子。这是"随手就能填"的全部入口，必须常驻、必须一行放得下 */
+.wx-led-cats {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 5px;
+}
+.wx-led-cat {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 11px;
+  font-weight: 660;
+  letter-spacing: 0.3px;
+  line-height: 1.1;
+  color: color-mix(in srgb, var(--text) 66%, var(--text-dim));
+  white-space: nowrap;
+  transition: border-color 0.13s, background 0.13s, color 0.13s;
+}
+.wx-led-cat:hover {
+  border-color: var(--cc);
+  color: var(--text);
+}
+.wx-led-cat.on {
+  border-color: var(--cc);
+  background: color-mix(in srgb, var(--cc) 20%, transparent);
+  color: var(--text);
+  font-weight: 700;
+}
+/* 货款跟六项费用之间留一道缝：两本账，别让人以为是并列的第七项费用 */
+.wx-led-split {
+  flex: 0 0 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--border);
+}
+.wx-led-cat.cogs {
+  flex: 1.15 1 0;
+}
+
+/* 录入行：日期徽标 + 金额 + 确认。回车提交，失焦不提交 */
+.wx-led-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+.wx-led-day {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 11px;
+  font-weight: 660;
+  letter-spacing: 0.3px;
+  color: color-mix(in srgb, var(--text) 66%, var(--text-dim));
+}
+.wx-led-day.back {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.wx-led-amount {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 12px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+}
+.wx-led-amount::-webkit-outer-spin-button,
+.wx-led-amount::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.wx-led-ok {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+}
+.wx-led-ok:hover {
+  filter: brightness(1.1);
+}
+.wx-led-entry.note {
+  margin-top: -2px;
+}
+.wx-led-noteinput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.2px;
+}
+.wx-led-noteinput:focus {
+  border-color: var(--accent);
+}
+.wx-led-noteinput::placeholder {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.wx-led-flash {
+  margin: -1px 0 5px;
+  min-height: 13px; /* 空文案时也占住这一行，见模板里的注释 */
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 10px;
+  font-weight: 660;
+  letter-spacing: 0.25px;
+  line-height: 13px;
+  color: var(--ok);
+}
+
+/*
+ * 六项费用排行。宽度按六项自己的最大值归一，跟货款完全隔离——
+ * 这是"货款压扁其他项"那个问题的解法本身，别改成按总额归一。
+ */
+.wx-led-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wx-led-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 11px;
+  font-weight: 640;
+  letter-spacing: 0.25px;
+  color: color-mix(in srgb, var(--text) 60%, var(--text-dim));
+}
+.wx-led-label {
+  flex: 0 0 40px; /* 「运杂费」三个字在 11px 下要 40px，给少了会挤成两行 */
+  white-space: nowrap;
+}
+.wx-led-track {
+  flex: 1 1 auto;
+  height: 6px;
+  min-width: 0;
+  border-radius: 3px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+.wx-led-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+.wx-led-amt {
+  flex: 0 0 auto;
+  min-width: 48px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.wx-led-share {
+  flex: 0 0 30px;
+  text-align: right;
+  color: color-mix(in srgb, var(--text) 45%, var(--text-faint));
+  font-variant-numeric: tabular-nums;
+}
+.wx-led-blank {
+  padding: 3px 0;
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 10px;
+  font-weight: 640;
+  letter-spacing: 0.25px;
+  color: color-mix(in srgb, var(--text) 50%, var(--text-faint));
+}
+
+/*
+ * 迷你柱状趋势。当期那根实心带辉光，历史的用半透明——
+ * 一眼看到的不只是"这期多少"，而是"跟前几期比是多是少"。
+ */
+.wx-goal-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+  padding-bottom: 2px;
+  /* 一条基线，让这组柱子读起来是"图表"而不是几个色块 */
+  border-bottom: 1px solid color-mix(in srgb, var(--gc) 22%, var(--border));
+}
+.wx-spark-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px 2px 1px 1px;
+  background: color-mix(in srgb, var(--gc) 40%, transparent);
+  transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.wx-spark-bar.now {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gc) 72%, #fff),
+    var(--gc)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gc) 45%, transparent);
+}
+.wx-goal-pct i {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 700;
+  opacity: 0.55;
+  margin-left: 1.5px;
+}
+/* 行尾的加减一对。两个按钮同尺寸同圆角，只有悬停色区分方向 */
+.wx-goal-steps {
+  flex: none;
+  display: inline-flex;
+  gap: 4px;
+}
+.wx-goal-step {
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: 1px solid transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.wx-goal-step:hover {
+  color: #fff;
+}
+.wx-goal-step.add:hover {
+  background: var(--gc);
+  border-color: var(--gc);
+}
+/* 减进度多半是纠错，用琥珀色，跟"往前推进"的目标色分开 */
+.wx-goal-step.sub:hover {
+  background: var(--warn);
+  border-color: var(--warn);
+}
+
+/* 输入框左边的方向徽标，点一下就能翻转加减 */
+.wx-goal-sign {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.wx-goal-sign.sub {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.wx-goal-input {
+  width: 66px;
+  flex: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--text);
+  outline: none;
+}
+.wx-goal-input.sub {
+  border-color: var(--warn);
+}
+/* 仪表盘式分段轨道：细刻度负责精度感，浮层渐变负责质感 */
+.wx-goal-bar {
+  position: relative;
+  height: 9px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, var(--border));
+  border-radius: 99px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text) 11%, var(--bg-soft)),
+    color-mix(in srgb, var(--text) 4%, var(--bg-elev))
+  );
+  box-shadow:
+    inset 0 1px 3px color-mix(in srgb, black 16%, transparent),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.wx-goal-bar::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 2px;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(10% - 1px),
+    color-mix(in srgb, var(--bg-elev) 34%, transparent) calc(10% - 1px),
+    color-mix(in srgb, var(--bg-elev) 34%, transparent) 10%
+  );
+  opacity: 0.42;
+  pointer-events: none;
+}
+.wx-goal-bar i {
+  display: block;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  border-radius: 99px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 48%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gc) 84%, #315f9d),
+      var(--gc) 52%,
+      color-mix(in srgb, var(--gc) 72%, #ffffff)
+    );
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--gc) 24%, transparent),
+    0 1px 3px color-mix(in srgb, var(--gc) 20%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px rgba(7, 15, 30, 0.2);
+  overflow: hidden;
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.wx-goal-bar i::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  bottom: -4px;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  opacity: 0;
+  transform: translateX(-180%) skewX(-20deg);
+}
+.wx-goal-bar i::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 58%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+}
+.wx-goal:hover .wx-goal-bar i::before {
+  animation: wx-goal-sheen 1.05s ease-out;
+}
+@keyframes wx-goal-sheen {
+0% {
+    opacity: 0;
+    transform: translateX(-180%) skewX(-20deg);
+}
+28% {
+    opacity: 0.72;
+}
+100% {
+    opacity: 0;
+    transform: translateX(340%) skewX(-20deg);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.wx-goal,
+  .wx-goal-bar i {
+    transition: none;
+}
+.wx-goal:hover .wx-goal-bar i::before {
+    animation: none;
+}
+}
+.wx-goals-empty {
+  padding: 10px 0;
+  text-align: center;
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 10px;
+  font-weight: 620;
+  color: color-mix(in srgb, var(--text) 64%, var(--text-dim));
+  letter-spacing: 0.08px;
+  opacity: 1;
+  border: 1px dashed color-mix(in srgb, var(--text) 14%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+}
+.wx-unsorted {
+  margin: 0 12px 8px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  flex: none;
+}
+
+/* ---------- 四象限 ---------- */
+.wx-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 7px;
+  padding: 0 12px 12px;
+  /*
+   * 保底两行 × 各留得下标题和一张卡片。主任务现在能按内容长高，
+   * 这个下限就是它的天花板——没有它，一个展开的台账能把四象限压没。
+   */
+  min-height: 124px;
+}
+.wx-quad {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      120px 70px at 0% 0%,
+      color-mix(in srgb, var(--qc) 7%, transparent),
+      transparent 75%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--qc) 4%, var(--bg-elev)),
+      var(--bg-elev) 44%,
+      color-mix(in srgb, var(--bg) 28%, var(--bg-elev)) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--qc) 14%, var(--border-soft));
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 7px 20px color-mix(in srgb, black 6%, transparent);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.wx-quad.is-drag-origin {
+  border-color: color-mix(in srgb, var(--qc) 23%, var(--border-soft));
+}
+.wx-quad.is-drop-target {
+  border-color: color-mix(in srgb, var(--qc) 68%, var(--border));
+  background:
+    radial-gradient(
+      150px 100px at 50% 42%,
+      color-mix(in srgb, var(--qc) 13%, transparent),
+      transparent 76%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--qc) 7%, var(--bg-elev)),
+      var(--bg-elev) 44%,
+      color-mix(in srgb, var(--qc) 5%, var(--bg-soft)) 100%
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--qc) 24%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 8px 22px color-mix(in srgb, var(--qc) 14%, transparent);
+}
+.wx-quad.is-drop-target .wx-qmark {
+  border-color: color-mix(in srgb, var(--qc) 52%, var(--border));
+  background: color-mix(in srgb, var(--qc) 15%, var(--bg-soft));
+}
+.wx-quad.is-drop-target .wx-qhint {
+  color: color-mix(in srgb, var(--qc) 82%, var(--text));
+}
+/* 象限色只做成一段精细标记，避免整块卡片显得用力过猛 */
+.wx-quad::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 13px;
+  width: 46px;
+  height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, var(--qc), transparent);
+  opacity: 0.92;
+}
+.wx-quad-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 39px;
+  padding: 7px 8px 6px;
+  flex: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 3%, transparent),
+    transparent
+  );
+}
+.wx-qmark {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--qc) 18%, var(--border-soft));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--qc) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+.wx-qdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc);
+  flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--qc) 9%, transparent);
+}
+.wx-qtitle {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.wx-qname {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 720;
+  line-height: 1.05;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wx-qhint {
+  margin-top: 4px;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text) 68%, var(--text-dim));
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wx-qn {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 23px;
+  height: 19px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--qc) 27%, var(--border-soft));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--qc) 8%, var(--bg-soft));
+  color: color-mix(in srgb, var(--qc) 68%, var(--text));
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+.wx-qn.has {
+  border-color: color-mix(in srgb, var(--qc) 44%, var(--border));
+  background: color-mix(in srgb, var(--qc) 14%, var(--bg-soft));
+  color: color-mix(in srgb, var(--qc) 82%, var(--text));
+  font-size: 11px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 9%, transparent),
+    0 3px 9px color-mix(in srgb, var(--qc) 10%, transparent);
+}
+.wx-quad-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.wx-quad-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* ---------- 待办卡片 ---------- */
+.wx-card {
+  cursor: grab;
+  border: 1px solid color-mix(in srgb, var(--text) 5%, var(--border-soft));
+  border-left: 2px solid transparent;
+  border-radius: 9px;
+  padding: 6px 7px 5px;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, white 4%, var(--bg-soft)),
+      color-mix(in srgb, var(--bg-soft) 78%, var(--bg-elev))
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    opacity 0.15s,
+    transform 0.15s;
+}
+.wx-card:active {
+  cursor: grabbing;
+}
+.wx-card:hover {
+  border-color: color-mix(in srgb, var(--text) 9%, var(--border));
+  transform: translateY(-1px);
+}
+.wx-card-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.wx-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.wx-card-meta {
+  width: 100%;
+  margin-top: 4px;
+  min-height: 16px;
+}
+.wx-chip {
+  font-size: 9.5px;
+  line-height: 15px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(127, 140, 165, 0.16);
+  color: var(--text-faint);
+  flex: none;
+  white-space: nowrap;
+}
+.wx-chip.time {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+/*
+ * 排在将来的待办标个日期。用描边不用实底：
+ * 实底的 chip 在这一行里已经有好几个（时间、时长、告警），
+ * 再加一个会糊成一片；描边能一眼跟"今天的事"区分开，又不抢告警色的注意力。
+ */
+.wx-chip.future {
+  color: var(--text-dim);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-weight: 600;
+}
+.wx-chip.duration {
+  color: var(--text-dim);
+  background: rgba(127, 140, 165, 0.16);
+}
+.wx-chip.run {
+  color: var(--run);
+  background: var(--run-bg);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+.wx-chip.urgent {
+  color: var(--urgent);
+  background: var(--urgent-bg);
+  font-weight: 600;
+}
+.wx-chip.overdue {
+  color: var(--overdue);
+  background: var(--overdue-bg);
+  font-weight: 700;
+}
+.wx-chip.done {
+  color: var(--ok);
+  background: rgba(62, 207, 142, 0.13);
+}
+.wx-acts {
+  margin-left: auto;
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+.wx-act {
+  width: 18px;
+  height: 18px;
+  border: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  transition: background 0.12s, color 0.12s;
+}
+.wx-act:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.wx-act.on {
+  background: var(--run);
+  color: #fff;
+}
+.wx-act.check.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* —— 三种状态 —— */
+.wx-card.is-running {
+  background: linear-gradient(180deg, var(--run-bg), var(--run-bg-2));
+  border-left-color: var(--run);
+}
+.wx-card.is-urgent {
+  background: linear-gradient(180deg, var(--urgent-bg), var(--urgent-bg-2));
+  border-left-color: var(--urgent);
+}
+.wx-card.is-overdue {
+  background: linear-gradient(180deg, var(--overdue-bg), var(--overdue-bg-2));
+  border-left-color: var(--overdue);
+  border-left-width: 3px;
+  box-shadow: inset 0 0 0 1px var(--overdue-glow);
+}
+/* 计时中又临期/超时：绿色底色保留，截止状态用对应颜色的外圈表达 */
+.wx-card.ring-urgent {
+  box-shadow: 0 0 0 1px var(--urgent);
+}
+.wx-card.ring-overdue {
+  box-shadow: 0 0 0 1px var(--overdue), 0 0 9px var(--overdue-glow);
+}
+.wx-card.is-done {
+  opacity: 0.5;
+  border-left-color: transparent;
+}
+.wx-card.is-done .wx-card-title {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+.wx-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.28;
+  border-color: color-mix(in srgb, var(--text) 18%, var(--border));
+  border-style: dashed;
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+.wx-quad,
+  .wx-card {
+    transition: none;
+}
+}
+.wx-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: color-mix(in srgb, var(--text) 66%, var(--text-dim));
+  font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  opacity: 1;
+}
+.wx-empty::before {
+  content: '+';
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--qc) 30%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--qc) 6%, transparent);
+  color: color-mix(in srgb, var(--qc) 58%, var(--text-faint));
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* ---------- 卡片右键菜单 ---------- */
+.wx-context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+}
+.wx-context-menu {
+  position: absolute;
+  width: 112px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+.wx-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: left;
+}
+.wx-context-menu button:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.wx-context-menu button.danger {
+  color: var(--danger);
+}
+.wx-context-menu button.danger:hover {
+  background: rgba(255, 93, 93, 0.12);
+}
+
+/* ---------- 浮层表单 ---------- */
+.wx-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  z-index: 20;
+}
+.wx-form {
+  width: 100%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+}
+.wx-form-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 9px;
+}
+.wx-input {
+  width: 100%;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+.wx-input:focus {
+  border-color: var(--accent);
+}
+.wx-form-row,
+.wx-form-row3 {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+}
+.wx-form-row {
+  grid-template-columns: 1fr 1fr;
+}
+.wx-form-row.single {
+  grid-template-columns: 1fr;
+}
+.wx-form-row3 {
+  grid-template-columns: 1.1fr 0.8fr 1fr;
+}
+.wx-form-row label,
+.wx-form-row3 label {
+  display: block;
+  min-width: 0;
+}
+.wx-form-row span,
+.wx-form-row3 span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 3px;
+}
+/*
+ * 标签行右端的"清空"，只在该项有值时出现。
+ * 默认就带红色底＋描边，不做成灰的——它是这一行里唯一的操作入口，
+ * 藏起来用户根本找不到（之前就是因为看不见才提的这个需求）。
+ */
+.wx-clear {
+  margin-left: auto;
+  flex: none;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.2px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 17%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 36%, transparent);
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+.wx-clear:hover {
+  color: #fff;
+  background: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+/* ---------- 天气位置面板 ---------- */
+.wx-city-search {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+.wx-city-search .wx-input {
+  flex: 1;
+  min-width: 0;
+}
+.wx-city-search .wx-btn {
+  flex: none;
+}
+.wx-city-list {
+  margin-top: 8px;
+  max-height: 152px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wx-city-list::-webkit-scrollbar {
+  width: 4px;
+}
+.wx-city {
+  text-align: left;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  transition: border-color 0.12s, background 0.12s;
+}
+.wx-city:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.wx-city b {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wx-city i {
+  display: block;
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+/* 主任务的模式二选一：标题 + 一句话说明，比光放两个词好懂 */
+.wx-confirm {
+  max-width: 300px;
+}
+.wx-confirm-text {
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.wx-form-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.wx-mode {
+  padding: 7px 9px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  text-align: left;
+  transition: border-color 0.14s, background 0.14s;
+}
+.wx-mode b {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.wx-mode i {
+  display: block;
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.wx-mode.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.wx-mode.on b {
+  color: var(--accent);
+}
+.wx-form-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 9px;
+}
+.wx-pill {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.wx-pill.on {
+  border-color: var(--qc);
+  color: var(--qc);
+  background: color-mix(in srgb, var(--qc) 14%, transparent);
+}
+.wx-form-hint {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--warn);
+  line-height: 1.5;
+}
+.wx-form-hint.muted {
+  color: var(--text-faint);
+}
+.wx-form-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 11px;
+}
+.wx-btn {
+  padding: 5px 13px;
+  border-radius: 7px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.wx-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.wx-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.wx-btn.danger {
+  margin-right: auto;
+  border-color: transparent;
+  color: var(--danger);
+}
+.wx-btn.danger:hover {
+  background: rgba(255, 93, 93, 0.12);
+  color: var(--danger);
+}
