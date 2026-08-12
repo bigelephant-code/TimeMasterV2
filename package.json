@@ -1,48 +1,64 @@
 {
   "name": "timemaster-v2",
-  "version": "0.1.3",
+  "version": "0.1.4-dev.0",
   "description": "时间大师 V2 — 日历、待办、四象限、专注、主任务、费用台账与桌面小组件",
   "author": "Ray",
   "license": "MIT",
   "private": true,
   "type": "commonjs",
-  "main": "./runtime/main/index.js",
+  "main": "./out/main/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bigelephant-code/LiteCal.git"
+    "url": "https://github.com/bigelephant-code/TimeMasterV2.git"
   },
   "bugs": {
-    "url": "https://github.com/bigelephant-code/LiteCal/issues"
+    "url": "https://github.com/bigelephant-code/TimeMasterV2/issues"
   },
-  "homepage": "https://github.com/bigelephant-code/LiteCal#readme",
+  "homepage": "https://github.com/bigelephant-code/TimeMasterV2#readme",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron.mjs",
-    "dev": "npm run ensure:electron && electron .",
-    "start": "npm run ensure:electron && electron .",
-    "check": "node scripts/verify-runtime.mjs",
-    "build": "npm run check",
+    "dev": "npm run ensure:electron && electron-vite dev",
+    "start": "npm run ensure:electron && electron-vite preview",
+    "check:reference": "node scripts/verify-runtime.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run check:reference && npm test && npm run build && npm run verify:build",
+    "build": "electron-vite build && node scripts/harden-built-csp.mjs",
+    "verify:build": "node scripts/verify-build.mjs",
     "icon": "node scripts/make-icon.mjs",
     "dist": "npm run ensure:electron && npm run icon && npm run check && electron-builder --win --x64",
-    "dist:dir": "npm run ensure:electron && npm run icon && npm run check && electron-builder --win --x64 --dir"
+    "dist:dir": "npm run ensure:electron && npm run icon && npm run check && electron-builder --win --x64 --dir",
+    "smoke:packaged": "node scripts/smoke-packaged-app.mjs"
+  },
+  "dependencies": {
+    "lunar-javascript": "1.7.7",
+    "vue": "3.5.40"
   },
   "devDependencies": {
     "electron": "43.2.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "vite": "7.3.6"
   },
   "build": {
     "appId": "com.timemaster.v2",
     "productName": "时间大师 V2",
     "artifactName": "TimeMasterV2-Setup-${version}.${ext}",
+    "electronDist": "node_modules/electron/dist",
+    "npmRebuild": false,
     "directories": {
       "output": "release",
       "buildResources": "build"
     },
     "files": [
-      "runtime/**/*",
-      "package.json"
+      "out/**/*",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "LICENSES/**/*",
+      "PRIVACY.md"
     ],
     "electronLanguages": [
       "zh-CN",

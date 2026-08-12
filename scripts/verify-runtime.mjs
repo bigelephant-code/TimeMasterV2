@@ -13,7 +13,7 @@ const walk = (directory) => readdirSync(directory, { withFileTypes: true }).flat
 })
 
 const required = [
-  pkg.main,
+  'runtime/main/index.js',
   'runtime/preload/index.js',
   'runtime/renderer/index.html',
   'runtime/renderer/widget.html'
@@ -72,4 +72,4 @@ for (const line of manifest) {
   }
 }
 
-console.log(`TimeMaster V2 ${pkg.version} 运行时检查通过（${manifest.length} 个恢复文件）。`)
+console.log(`TimeMaster V2 0.1.3 参考运行时检查通过（${manifest.length} 个恢复文件）。`)
