@@ -10,6 +10,7 @@
 - 添加 0.1.3 黄金参考哈希、preload/IPC 契约和窗口安全选项测试。
 - 为主窗口和小组件启用 Electron renderer sandbox，并增加使用隔离数据目录的打包应用 smoke test。
 - 修复恢复出的日历 bundle 中两处错误的后缀边界判断，并将开发环境最低版本与 Electron 43 对齐到 Node.js 22.12。
+- 将 0.1.4-dev 开发和打包运行时升级到 Electron 43.3.0；恢复出的 renderer 仍如实保留其内嵌 Vue 3.5.40。
 - 添加隐私说明、威胁模型、支持指南、第三方完整许可证和使用虚构数据的脱敏截图。
 
 ### Changed

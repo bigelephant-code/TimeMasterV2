@@ -8,7 +8,7 @@ TimeMaster V2 的当前构建输入和发布产物包含第三方开源软件。
 |---|---:|---|---|
 | [Vue.js](https://github.com/vuejs/core) | 3.5.40 | renderer UI 运行时 | MIT — [完整许可证](LICENSES/Vue-3.5.40-LICENSE.txt) |
 | [lunar-javascript](https://github.com/6tail/lunar-javascript) | 1.7.7 | 农历、节气与传统日历计算 | MIT — [完整许可证](LICENSES/lunar-javascript-1.7.7-LICENSE.txt) |
-| [Electron](https://github.com/electron/electron) | 43.2.0 | Windows 桌面运行时与原生 API | MIT — [完整许可证](LICENSES/Electron-43.2.0-LICENSE.txt) |
+| [Electron](https://github.com/electron/electron) | 43.3.0 | Windows 桌面运行时与原生 API | MIT — [完整许可证](LICENSES/Electron-43.3.0-LICENSE.txt) |
 
 版权归各上游作者和贡献者所有，包括但不限于：
 

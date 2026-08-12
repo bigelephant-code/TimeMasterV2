@@ -43,7 +43,7 @@ Git 仓库最初只保存了 LiteCal 0.1.0 的一次源码提交。之后演进�
 
 - `src/main/index.js` 和 `src/preload/index.js` 保留可读逻辑，但原先可能存在的模块边界已不可恢复；
 - `src/renderer/` 保留已编译的 Vue 渲染函数、HTML 和 CSS，可编辑、可构建，但不是原始 `.vue` 文件；
-- 直接依赖被识别并锁定到 Vue 3.5.40 与 lunar-javascript 1.7.7；Electron 开发/打包运行时锁定为 43.2.0；
+- 恢复出的 renderer 直接包含 Vue 3.5.40 与 lunar-javascript 1.7.7；项目所有者的 0.1.3 安装包使用 Electron 43.2.0，当前 0.1.4-dev 开发/打包运行时升级到 Electron 43.3.0；
 - `npm run check` 同时验证黄金参考、IPC/安全契约、当前构建和 `out/` 产物结构。
 
 这些检查用于发现行为边界、桥接接口和构建结构的意外变化。它们**不宣称**当前构建能逐字节复现原始 0.1.3 安装包；构建工具版本、归档元数据、编译顺序、签名状态和 source-equivalent 输入都可能使二进制不同。
