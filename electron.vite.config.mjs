@@ -7,7 +7,12 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      rollupOptions: { input: { index: r('src/main/index.js') } }
+      rollupOptions: {
+        input: {
+          index: r('src/main/index.js'),
+          'task-time': r('src/main/task-time.js')
+        }
+      }
     }
   },
   preload: {

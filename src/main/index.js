@@ -6,20 +6,9 @@ const node_crypto = require("node:crypto");
 const promises = require("node:fs/promises");
 const node_zlib = require("node:zlib");
 const node_url = require("node:url");
+const { normalizeTaskTime, taskStartTime, taskEndTime } = require("./task-time.js");
 const SMOKE_TEST_FLAG = "--timemaster-smoke-test";
 const isSmokeTest = process.argv.includes(SMOKE_TEST_FLAG);
-const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
-function normalizeTaskTime(value) {
-  const text = String(value || "").trim();
-  return TIME_RE.test(text) ? text : null;
-}
-function taskStartTime(todo) {
-  return normalizeTaskTime(todo?.startTime);
-}
-function taskEndTime(todo) {
-  const value = todo?.endTime !== void 0 ? todo.endTime : todo?.time;
-  return normalizeTaskTime(value);
-}
 function taskHasTime(todo) {
   return !!(taskStartTime(todo) || taskEndTime(todo));
 }
@@ -353,7 +342,7 @@ function initStore() {
 function migrateTodoTimes() {
   let changed = data.version !== DATA_VERSION;
   for (const todo of data.todos) {
-    const startTime = normalizeTaskTime(todo.startTime);
+    const startTime = taskStartTime(todo);
     const endTime = taskEndTime(todo);
     if (todo.startTime !== startTime) changed = true;
     if (todo.endTime !== endTime) changed = true;
@@ -500,8 +489,8 @@ const repo = {
   },
   createTodo(input = {}) {
     const now = Date.now();
-    const startTime = normalizeTaskTime(input.startTime);
-    const endTime = normalizeTaskTime(input.endTime !== void 0 ? input.endTime : input.time);
+    const startTime = taskStartTime(input);
+    const endTime = taskEndTime(input);
     const todo = {
       id: node_crypto.randomUUID(),
       listId: input.listId || data.lists[0]?.id || null,
@@ -561,12 +550,8 @@ const repo = {
     for (const key of editable) {
       if (patch[key] !== void 0) todo[key] = patch[key];
     }
-    if (patch.startTime !== void 0) todo.startTime = normalizeTaskTime(patch.startTime);
-    if (patch.endTime !== void 0) {
-      todo.endTime = normalizeTaskTime(patch.endTime);
-    } else if (patch.time !== void 0) {
-      todo.endTime = normalizeTaskTime(patch.time);
-    }
+    if (patch.startTime !== void 0) todo.startTime = taskStartTime(patch);
+    if (patch.endTime !== void 0 || patch.time !== void 0) todo.endTime = taskEndTime(patch);
     todo.time = todo.endTime || null;
     if (patch.date !== void 0 || patch.startTime !== void 0 || patch.endTime !== void 0 || patch.time !== void 0 || patch.remindBefore !== void 0) {
       todo.notifiedKey = null;

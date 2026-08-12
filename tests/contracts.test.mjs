@@ -39,6 +39,7 @@ test('security and product identity invariants stay explicit', () => {
   assert.match(main, /setWindowOpenHandler\(\(\) => \(\{ action: "deny" \}\)\)/)
   assert.match(main, /Rejected IPC from an untrusted sender/)
   assert.match(main, /--timemaster-smoke-test/)
+  assert.match(main, /if \(patch\.endTime !== void 0 \|\| patch\.time !== void 0\) todo\.endTime = taskEndTime\(patch\)/)
 })
 
 test('bundled lunar suffix checks reject lastIndexOf minus-one false positives', () => {
