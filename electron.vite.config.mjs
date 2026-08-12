@@ -1,5 +1,4 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import vue from '@vitejs/plugin-vue'
 import { fileURLToPath } from 'node:url'
 
 const r = (p) => fileURLToPath(new URL(p, import.meta.url))
@@ -19,10 +18,6 @@ export default defineConfig({
   },
   renderer: {
     root: r('src/renderer'),
-    resolve: {
-      alias: { '@': r('src/renderer/src') }
-    },
-    plugins: [vue()],
     build: {
       rollupOptions: {
         input: {

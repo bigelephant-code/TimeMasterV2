@@ -1,20 +1,43 @@
-## 修改内容
+## Summary
 
-- 
+<!-- Explain the user-visible change and why it is needed. Link related issues with "Closes #..." when appropriate. -->
 
-## 原因与影响
+## Scope
 
-- 
+- Change:
+- Out of scope:
 
-## 数据兼容
+## Privacy and security
 
-- [ ] 不改变现有数据格式
-- [ ] 包含迁移或回滚说明
-- [ ] 不适用
+- [ ] I did not commit real `data.json`, backups, financial records, task/calendar content, location data, credentials, secrets, tokens, or identifying logs/screenshots.
+- [ ] New or changed IPC channels validate their sender and expose only the minimum required capability.
+- [ ] The change does not add network access, telemetry, permissions, or third-party data sharing; or I documented and justified each addition below.
+- [ ] Saved-data compatibility, migration, rollback, and failure behavior are documented below; or no saved-data format changes are made.
 
-## 验证
+Privacy/security notes:
 
+## Validation
+
+- [ ] `npm ci --ignore-scripts`
 - [ ] `npm run check`
-- [ ] 主窗口已验证
-- [ ] 桌面小组件已验证
-- [ ] 已附 UI 截图（如适用）
+- [ ] Main window behavior was tested on Windows.
+- [ ] Desktop widget behavior was tested when affected.
+- [ ] Failure, empty-data, and restart behavior were tested when affected.
+- [ ] Screenshots use fictional demo data and contain no personal information.
+
+Test evidence:
+
+## UI and accessibility
+
+<!-- Remove this section if the change has no UI impact. -->
+
+- [ ] Keyboard navigation and visible focus remain usable.
+- [ ] Text remains legible at common Windows scaling settings.
+- [ ] Before/after screenshots or a short recording are attached when useful.
+
+## Release and documentation impact
+
+- [ ] User-facing behavior is documented.
+- [ ] Dependency or license notices are updated when needed.
+- [ ] Release notes or upgrade instructions are included when needed.
+- [ ] No release/documentation update is required.

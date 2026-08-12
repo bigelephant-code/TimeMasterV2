@@ -1,88 +1,117 @@
 # 时间大师 V2（TimeMaster V2）
 
+[![License: MIT](https://img.shields.io/github/license/bigelephant-code/TimeMasterV2)](LICENSE)
+[![CI](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml/badge.svg)](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/bigelephant-code/TimeMasterV2?display_name=tag)](https://github.com/bigelephant-code/TimeMasterV2/releases)
+
 [English](README.en.md) | 简体中文
 
-一个面向 Windows 的本地优先时间管理工具，把日历、待办、艾森豪威尔四象限、专注计时、主任务和费用台账放进同一个桌面工作台。
+时间大师 V2 是一个面向 Windows 的本地优先时间管理工具，把日历、待办、艾森豪威尔四象限、专注计时、主任务、费用台账和桌面小组件放在同一个工作台中。
 
-项目由最初的“轻日历 LiteCal”演进而来。当前可运行版本为 **0.1.3**；仓库保留了 LiteCal 0.1.0 的模块化源码，也保存了从最终安装包校验恢复的 0.1.3 可读运行源码，确保已经完成的功能不再只存在于安装包中。
+[![从 GitHub Releases 下载](https://img.shields.io/badge/下载-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-## 核心能力
+> 发布说明：`v0.1.3` 保存的是项目所有者制作的原始 Windows 安装包，以及从该安装包提取并按哈希锁定的不可变运行时参考。安装包未经过 Authenticode 签名，Windows 可能显示 SmartScreen 警告。当前 `main` 是 **0.1.4-dev** 开发线，使用从该所有者产物重建的“源代码等价实现（source-equivalent reconstruction）”作为可编辑、可构建输入；它不是丢失的原始源码，也不保证构建结果与 0.1.3 逐字节一致。
 
-| 模块 | 说明 |
+## 功能概览
+
+| 模块 | 能力 |
 |---|---|
 | 日历 | 月、周、日视图；公历、农历、节气、传统节日和法定节假日 |
-| 待办 | 多清单、开始/结束时间、优先级、重复、提醒、拖拽和耗时统计 |
-| 四象限 | 与待办共用数据，可在重要/紧急四个象限之间整理任务 |
+| 待办 | 多清单、起止时间、优先级、重复、提醒、拖拽和耗时统计 |
+| 四象限 | 与待办共用数据，在重要/紧急四个象限之间整理任务 |
 | 专注办公 | 自定义倒计时、暂停/继续、完成记录和每日汇总 |
-| 主任务 | 目标进度、周期累计与历史记录 |
+| 主任务 | 目标进度、周期累计和历史记录 |
 | 费用台账 | 按日期记账、历史明细、补录识别和 Excel 对账导出 |
 | 桌面小组件 | 日期、农历、天气、时间节点、专注、主任务和今日四象限 |
 | 本地数据 | JSON 原子写入、损坏文件留档、自动备份与恢复 |
 
-## 隐私与联网边界
+## 界面预览
 
-- 待办、专注记录、主任务、费用台账和设置均保存在本机 `%APPDATA%\timemaster-v2\`。
-- 没有账号体系、广告、会员、埋点或遥测上报。
-- 天气功能会按用户选择的位置访问 Open-Meteo 的预报与地理编码接口；关闭或不配置天气时，核心功能可以离线使用。
-- 渲染进程启用了 `contextIsolation`，Node 能力只通过显式 IPC 白名单开放。
+| 日历 | 待办 |
+|---|---|
+| ![时间大师日历页面](docs/images/calendar.png) | ![时间大师待办页面](docs/images/todos.png) |
+| 四象限 | 费用台账 |
+| ![时间大师四象限页面](docs/images/matrix.png) | ![时间大师费用台账页面](docs/images/expenses.png) |
 
-## 快速开始
+以上截图来自隔离的演示环境，任务名称、金额、日期和其他内容均为虚构脱敏数据，不代表真实用户或真实采用情况。
 
-要求：Windows 10/11、Node.js 20 或更高版本。
+## 隐私、安全与支持
+
+- 待办、专注记录、主任务、费用台账和设置默认保存在本机 `%APPDATA%\timemaster-v2\`。
+- 应用没有账号体系、广告、会员、分析或遥测上报。天气是 0.1.3 唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。
+- 主窗口和小组件启用 Electron renderer sandbox 与 `contextIsolation`、关闭 Node 集成，并通过显式 preload/IPC 白名单访问原生能力。
+- 详细数据流、删除方式和联网边界见 [隐私说明](PRIVACY.md)；安全假设与剩余风险见 [威胁模型](docs/THREAT_MODEL.md)；使用帮助见 [支持说明](SUPPORT.md)；漏洞请按 [安全政策](SECURITY.md) 私下报告。
+
+这是一款本地优先软件，不代表数据天然安全：应用数据和导出的工作簿未由 TimeMaster V2 加密，本机恶意软件或具有同等用户权限的进程仍可能读取它们。
+
+## 安装包完整性
+
+原始 `TimeMasterV2-Setup-0.1.3.exe` 的 SHA-256：
+
+```text
+8EEF4DB7BDF2F8BA4911C97E9189232DA9D7D362034822E51A6D03DB333DE9E4
+```
+
+该安装包 **未经过 Authenticode 签名**。只应从本仓库的 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 下载，并在运行前与 Release 中的校验文件核对：
 
 ```powershell
+Get-FileHash .\TimeMasterV2-Setup-0.1.3.exe -Algorithm SHA256
+```
+
+哈希一致只能确认文件与发布产物相同，不能替代代码签名，也不能保证程序绝对安全。完整的产物来源和恢复限制见 [恢复记录](docs/RECOVERY.md)。
+
+## 从源码运行与验证
+
+要求：Windows 10/11、Node.js 22.12 或更高版本。
+
+```powershell
+git clone https://github.com/bigelephant-code/TimeMasterV2.git
+Set-Location TimeMasterV2
 npm ci
 npm run check
 npm start
 ```
 
-`npm start` 和打包命令会先检查 Electron 运行时；如果 `npm ci` 没有自动下载，脚本会补充安装固定版本。
+`npm run check` 会验证不可变的 0.1.3 参考运行时、执行 IPC/安全契约测试、构建当前 `src/`，并检查生成的 `out/`。它验证工程完整性和关键契约，不表示构建与原始 0.1.3 安装包逐字节相同。
 
-国内网络安装 Electron 较慢时，可以临时使用镜像：
+如果 npm 没有下载锁定版本的 Electron 运行时，可执行：
 
 ```powershell
-$env:ELECTRON_MIRROR='https://registry.npmmirror.com/-/binary/electron/'
 npm run ensure:electron
 ```
 
-## 构建安装包
+构建 Windows x64 NSIS 安装包：
 
 ```powershell
 npm run dist
 ```
 
-产物写入 `release/`。默认生成可选择安装目录的 Windows x64 NSIS 安装包，卸载或版本升级不会主动删除用户数据。
+新产物写入 `release/`。开发构建应使用新的开发版本号，不应覆盖或冒充原始 `v0.1.3` 产物。
 
-## 源码结构
+验证完整目录包的主窗口、小组件、sandboxed preload 和 IPC：
 
-```text
-runtime/                   TimeMaster V2 0.1.3 当前可运行源码快照
-├── main/                  Electron 主进程、存储、提醒、导出与窗口管理
-├── preload/               contextBridge IPC 白名单
-└── renderer/              主窗口和桌面小组件的可读 JS/CSS/HTML
-src/                       LiteCal 0.1.0 历史模块化源码
-scripts/                   图标生成与运行时完整性检查
-docs/                      架构、恢复过程和维护资料
+```powershell
+npm run dist:dir
+npm run smoke:packaged
 ```
 
-`runtime/` 来自最终 0.1.3 安装包中的 `app.asar`，文件未压缩混淆，能够直接审查、运行和重新打包。恢复过程、安装包哈希及当前限制见 [docs/RECOVERY.md](docs/RECOVERY.md)。后续维护方向是把该快照逐步重新拆分为 Vue 单文件组件和独立主进程模块，并为数据迁移补充自动化测试。
+smoke test 使用显式隔离的临时 `userData` 与 session 目录，不读取或修改正式 `%APPDATA%\timemaster-v2\`。
 
-## 数据兼容
+## 目录与版本边界
 
-TimeMaster V2 使用独立身份，避免覆盖 LiteCal V1 数据：
+```text
+src/                       当前 0.1.4-dev 的可编辑、可构建 source-equivalent 输入
+runtime/                   从原始 0.1.3 app.asar 提取的不可变黄金参考
+legacy/litecal-0.1.0/      历史 LiteCal 0.1.0 模块化源码，仅作迁移参考
+tests/                     IPC 与安全契约测试
+scripts/                   参考哈希、构建与产物验证工具
+docs/                      架构、威胁模型和恢复资料
+```
 
-| 项目 | LiteCal V1 | TimeMaster V2 |
-|---|---|---|
-| 包名 | `litecal` | `timemaster-v2` |
-| App ID | `com.litecal.desktop` | `com.timemaster.v2` |
-| 数据目录 | `%APPDATA%\litecal\` | `%APPDATA%\timemaster-v2\` |
-
-请勿为“统一命名”而合并这些标识，否则两条产品线会争用安装和用户数据目录。
+原始安装包没有携带 source map 或原始 Vue 单文件组件，因此无法逐字节恢复丢失的工程结构。当前 `src/` 可审查、编辑和构建，但部分模块边界及 Vue 模板结构仍需要渐进式重构。详见 [架构说明](docs/ARCHITECTURE.md)、[恢复记录](docs/RECOVERY.md) 和 [Roadmap](ROADMAP.md)。
 
 ## 参与贡献
 
-欢迎提交问题、功能建议和 Pull Request。开始前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[ROADMAP.md](ROADMAP.md) 与 [SECURITY.md](SECURITY.md)。
+欢迎提交真实问题、功能建议和 Pull Request。开始前请阅读 [贡献指南](CONTRIBUTING.md)。请勿在 Issue、日志或截图中上传真实任务、费用、精确位置、令牌或本机绝对路径。
 
-## 开源许可
-
-本项目以 [MIT License](LICENSE) 发布。内嵌的第三方开源组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+项目以 [MIT License](LICENSE) 发布。直接运行时依赖及完整许可证文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

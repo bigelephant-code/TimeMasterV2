@@ -1,45 +1,95 @@
-name: Bug 报告
-description: 报告可以稳定复现的问题
-title: "[Bug] "
-labels: [bug]
+name: Bug report
+description: Report a reproducible TimeMaster V2 problem
+title: "[Bug]: "
+labels:
+  - bug
 body:
   - type: markdown
     attributes:
-      value: 请勿提交真实用户数据、密钥或其他敏感信息。
+      value: |
+        Thanks for helping improve TimeMaster V2.
+
+        **Privacy warning:** never attach your real `data.json`, backups, financial records, task or calendar content, location, API keys, tokens, passwords, or other personal data. Use fictional values and redact screenshots and logs before uploading them.
+
+        For a suspected security vulnerability, use the private security-reporting link instead of a public issue.
+
   - type: input
     id: version
     attributes:
-      label: 应用版本
-      placeholder: 例如 0.1.3
+      label: TimeMaster V2 version
+      description: Find this in the application or release filename.
+      placeholder: 0.1.3
     validations:
       required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - GitHub release installer
+        - Built from source
+        - Other
+    validations:
+      required: true
+
   - type: input
     id: windows
     attributes:
-      label: Windows 版本
-      placeholder: 例如 Windows 11 24H2
+      label: Windows version
+      placeholder: Windows 11 24H2, x64
     validations:
       required: true
+
   - type: textarea
     id: steps
     attributes:
-      label: 复现步骤
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence using fictional sample data.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
     validations:
       required: true
+
   - type: textarea
     id: expected
     attributes:
-      label: 预期结果
+      label: Expected behavior
     validations:
       required: true
+
   - type: textarea
     id: actual
     attributes:
-      label: 实际结果
+      label: Actual behavior
+      description: Include an exact error message when safe, but remove paths, usernames, and personal content.
     validations:
       required: true
+
   - type: textarea
-    id: context
+    id: frequency
     attributes:
-      label: 补充信息
-      description: 可提供已脱敏截图或日志片段。
+      label: Reproduction rate and recent changes
+      description: Does it happen every time? Did it begin after an update or settings change?
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Optional. Attach only redacted screenshots or minimal logs made with fictional data. Do not upload data files or backups.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues and did not find a matching report.
+          required: true
+        - label: I removed personal data, financial or location information, credentials, secrets, and identifying file paths from this report and its attachments.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
