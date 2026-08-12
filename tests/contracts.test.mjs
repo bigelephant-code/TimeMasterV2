@@ -83,16 +83,20 @@ test('expense workbook formulas and XML preserve opaque category ids safely', ()
   assert.match(main, /textCell\(row, 1, workbookCategoryKey\(cat\.id\), bodyStyle\)/)
   assert.match(main, /textCell\(row, 5, workbookCategoryKey\(cat\?\.id \?\? entry\.cat \?\? ""\)/)
 
-  const sanitizerSource = main.match(/function sanitizeXmlText\(value\) \{[\s\S]*?\n\}/)?.[0]
-  const escapeSource = main.match(/const escapeXml = \(value\) => .*?;\n/)?.[0]
+  const sanitizerPattern = /function sanitizeXmlText\(value\) \{[\s\S]*?\r?\n\}/
+  const escapePattern = /const escapeXml = \(value\) => .*?;\r?\n/
+  const sanitizerSource = main.match(sanitizerPattern)?.[0]
+  const escapeSource = main.match(escapePattern)?.[0]
   assert.ok(sanitizerSource && escapeSource, 'Could not load the production XML sanitizer')
+  const crlfMain = main.replace(/\r?\n/g, '\r\n')
+  assert.ok(crlfMain.match(sanitizerPattern)?.[0] && crlfMain.match(escapePattern)?.[0], 'XML sanitizer extraction must support CRLF checkouts')
   const productionEscapeXml = Function(`${sanitizerSource}\n${escapeSource}\nreturn escapeXml`)()
   assert.equal(
     productionEscapeXml(`safe\u0000\t\n\r&<>"'\ud800😀`),
     `safe\t\n\r&amp;&lt;&gt;&quot;&apos;😀`
   )
 
-  const keySource = main.match(/function workbookCategoryKey\(value\) \{[\s\S]*?\n\}/)?.[0]
+  const keySource = main.match(/function workbookCategoryKey\(value\) \{[\s\S]*?\r?\n\}/)?.[0]
   assert.ok(keySource, 'Could not load the production workbook category-key encoder')
   const productionWorkbookCategoryKey = Function(`${keySource}\nreturn workbookCategoryKey`)()
   const ids = ['control\u0001id', 'controlid', 'Case', 'case', '__proto__', '\ud800', '�']
