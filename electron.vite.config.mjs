@@ -15,6 +15,7 @@ export default defineConfig({
           'todo-completions': r('src/main/todo-completions.js'),
           'expense-categories': r('src/main/expense-categories.js'),
           'remote-reminders': r('src/main/remote-reminders.js'),
+          'gateway-direct-send': r('src/main/gateway-direct-send.js'),
           'ai-task-coach': r('src/main/ai-task-coach.js')
         }
       }
