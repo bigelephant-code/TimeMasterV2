@@ -6,6 +6,7 @@ const root = process.cwd()
 const required = [
   'out/main/index.js',
   'out/main/task-time.js',
+  'out/main/todo-rollovers.js',
   'out/main/expense-categories.js',
   'out/preload/index.js',
   'out/renderer/index.html',
@@ -16,7 +17,7 @@ for (const relative of required) {
   if (!existsSync(join(root, relative))) throw new Error(`Build output is missing: ${relative}`)
 }
 
-for (const relative of ['out/main/index.js', 'out/main/task-time.js', 'out/main/expense-categories.js', 'out/preload/index.js']) {
+for (const relative of ['out/main/index.js', 'out/main/task-time.js', 'out/main/todo-rollovers.js', 'out/main/expense-categories.js', 'out/preload/index.js']) {
   const result = spawnSync(process.execPath, ['--check', join(root, relative)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stderr || `Syntax check failed: ${relative}`)
 }
@@ -24,6 +25,9 @@ for (const relative of ['out/main/index.js', 'out/main/task-time.js', 'out/main/
 const builtMain = readFileSync(join(root, 'out', 'main', 'index.js'), 'utf8')
 if (!/require\(["']\.\/task-time\.js["']\)/.test(builtMain)) {
   throw new Error('Built main process does not reference the emitted task-time module.')
+}
+if (!/require\(["']\.\/todo-rollovers\.js["']\)/.test(builtMain)) {
+  throw new Error('Built main process does not reference the emitted todo-rollover module.')
 }
 if (!/require\(["']\.\/expense-categories\.js["']\)/.test(builtMain)) {
   throw new Error('Built main process does not reference the emitted expense-category module.')

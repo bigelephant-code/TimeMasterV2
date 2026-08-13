@@ -1,12 +1,12 @@
 # Privacy
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
-Applies to: the TimeMaster 0.1.8 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
+Applies to: the TimeMaster 0.1.9 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
 
-TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Expense-category and interface changes add no new network destination or third-party data sharing.
+TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Expense-category, rollover-history, and interface changes add no new network destination or third-party data sharing.
 
-Current released behavior refers to 0.1.4; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.4 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
+Current released behavior refers to 0.1.9; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.9 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
 
 ## Data stored on your computer
 
@@ -18,7 +18,7 @@ The application sets its user-data directory to:
 
 That directory can contain:
 
-- `data.json`: lists, tasks, goals, per-ledger expense-category definitions (including disabled categories), expense entries, focus sessions, and current focus state;
+- `data.json`: lists, tasks and their automatic-rollover history, goals, per-ledger expense-category definitions (including disabled categories), expense entries, focus sessions, and current focus state;
 - `settings.json`: appearance, window and widget settings, countdown settings, reminders, and related preferences;
 - `data.backup.json`: a local recovery copy of the main data file;
 - `data.pre-v4-<timestamp>[-n].json`: a non-overwriting full copy created before a pre-v4 data migration; it remains local and is not automatically rotated or deleted;
@@ -31,6 +31,10 @@ Expense workbooks are written only after you choose a destination in the Windows
 
 Custom expense-category names are user-entered text and may reveal projects, suppliers, or cost structure. They are stored locally and may be included in exported workbooks.
 
+### Automatic rollover history in 0.1.9
+
+When an incomplete dated task is automatically moved forward, its original date is retained locally as an incomplete rollover record. That record stores the original and target dates, a snapshot of the task title and list ID, and the time when the rollover was recorded. It remains attached to the task so the original calendar date can show the missed occurrence. Deleting the task also deletes its attached rollover history; uninstalling alone does not erase either while `deleteAppDataOnUninstall` remains disabled.
+
 ### Expense category retention in 0.1.4
 
 Each expense entry stores a stable category ID. Renaming a category changes the label shown for past and future entries, but does not change entry amounts, dates, notes, record IDs, or category IDs.
@@ -39,7 +43,7 @@ Each expense entry stores a stable category ID. Renaming a category changes the 
 
 ## Network activity
 
-Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in both the 0.1.3 and 0.1.4 releases that intentionally calls an Internet service.
+Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in both the 0.1.3 and 0.1.9 releases that intentionally calls an Internet service.
 
 ### City search
 

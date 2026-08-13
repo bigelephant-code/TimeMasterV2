@@ -11,6 +11,7 @@ export default defineConfig({
         input: {
           index: r('src/main/index.js'),
           'task-time': r('src/main/task-time.js'),
+          'todo-rollovers': r('src/main/todo-rollovers.js'),
           'expense-categories': r('src/main/expense-categories.js')
         }
       }

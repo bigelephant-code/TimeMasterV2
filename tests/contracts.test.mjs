@@ -120,6 +120,14 @@ test('expense category dialogs close after save and renderer dictionaries resist
   assert.match(categoryActions, /"仅供查看"/)
 })
 
+test('calendar navigation selects the requested date before rendering history', () => {
+  const navigation = mainRenderer.slice(mainRenderer.indexOf('function onNavigate(target)'), mainRenderer.indexOf('function onKey(e)'))
+  assert.match(navigation, /target\?\.view === "calendar"/)
+  assert.match(navigation, /state\.cursor = date/)
+  assert.match(navigation, /state\.selected = date/)
+  assert.match(navigation, /state\.view = "calendar"/)
+})
+
 test('expense category controls are exposed beside the actual ledger buttons', () => {
   assert.match(mainRenderer, /编辑费用分类按钮/)
   assert.match(mainRenderer, /这里管理的就是“记一笔”区域中的费用分类按钮/)
@@ -139,7 +147,7 @@ test('widget expense quick entry can be cancelled without writing a record', () 
 
 test('month calendar summarizes todo density without repeating titles', () => {
   assert.match(mainRenderer, /function cellTodos\(day\)/)
-  assert.match(mainRenderer, /项待办 · \$\{open\} 项未完成/)
+  assert.match(mainRenderer, /项记录 · \$\{open\} 项未完成/)
   assert.match(mainRenderer, /点击后在右侧查看详情/)
   assert.match(mainRenderer, /class: "month-todo-density"/)
   const monthCellSource = mainRenderer.slice(mainRenderer.indexOf('cellTodos(day) ?'), mainRenderer.indexOf('cellExp(day) ?'))
@@ -149,6 +157,23 @@ test('month calendar summarizes todo density without repeating titles', () => {
   assert.match(monthCellSource, /"未完成"/)
   assert.match(monthCellSource, /class: "finished"/)
   assert.match(monthCellSource, /"已完成"/)
+})
+
+test('automatic rollover keeps an incomplete occurrence on the original calendar date', () => {
+  assert.match(main, /require\("\.\/todo-rollovers\.js"\)/)
+  assert.match(main, /rolloverHistory: \[\]/)
+  assert.match(main, /function migrateTodoRolloverHistories\(\)/)
+  const rolloverSource = main.slice(main.indexOf('function rollOverUnfinishedTodos'), main.indexOf('const toNumber'))
+  assert.ok(
+    rolloverSource.indexOf('recordTodoRollover(todo, today, now)') < rolloverSource.indexOf('todo.date = today'),
+    'the missed occurrence must be recorded before the active todo date moves'
+  )
+  assert.match(mainRenderer, /const rolloversByDate = computed\(\(\) => \{/)
+  assert.match(mainRenderer, /function rolloverRecordsOn\(day\)/)
+  assert.match(mainRenderer, /record\.status !== "incomplete"/)
+  assert.match(mainRenderer, /class: "rollover-record"/)
+  assert.match(mainRenderer, /"当日未完成 · 顺延记录"/)
+  assert.match(mainRenderer, /rollover: cellTodos\(day\)\.rollover > 0/)
 })
 
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {

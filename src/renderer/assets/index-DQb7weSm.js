@@ -442,6 +442,13 @@ const _hoisted_38$1 = { class: "cogs" };
 const _hoisted_39$1 = { class: "n" };
 const _hoisted_40$1 = { class: "day-exp-rows" };
 const _hoisted_41$1 = { class: "todos" };
+const _hoisted_rollover_history = { class: "rollover-history" };
+const _hoisted_rollover_history_head = { class: "rollover-history-head" };
+const _hoisted_rollover_history_rows = { class: "rollover-history-rows" };
+const _hoisted_rollover_record_state = { class: "rollover-record-state" };
+const _hoisted_rollover_record_copy = { class: "rollover-record-copy" };
+const _hoisted_rollover_record_title = { class: "rollover-record-title" };
+const _hoisted_rollover_record_meta = { class: "rollover-record-meta" };
 const _hoisted_42$1 = {
   key: 0,
   class: "empty"
@@ -467,6 +474,32 @@ const _sfc_main$7 = {
     const selectedInfo = computed(() => lunarInfo(state.selected));
     const selectedDate = computed(() => parseYmd(state.selected));
     const selectedTodos = computed(() => todosOn(state.selected));
+    const rolloversByDate = computed(() => {
+      const map = /* @__PURE__ */ new Map();
+      for (const todo of state.todos) {
+        const history = Array.isArray(todo.rolloverHistory) ? todo.rolloverHistory : [];
+        for (const record of history) {
+          if (!record?.fromDate || record.status !== "incomplete") continue;
+          const recordListId = record.listId || todo.listId;
+          if (!map.has(record.fromDate)) map.set(record.fromDate, []);
+          map.get(record.fromDate).push({
+            ...record,
+            key: `${todo.id}:${record.fromDate}:${record.rolledTo}`,
+            todoId: todo.id,
+            title: record.title || todo.title || "未命名待办",
+            listName: listById.value.get(recordListId)?.name || "已删除清单"
+          });
+        }
+      }
+      for (const rows of map.values()) {
+        rows.sort((a, b) => Number(a.recordedAt || 0) - Number(b.recordedAt || 0) || a.title.localeCompare(b.title));
+      }
+      return map;
+    });
+    function rolloverRecordsOn(day) {
+      return rolloversByDate.value.get(day) || [];
+    }
+    const selectedRollovers = computed(() => rolloverRecordsOn(state.selected));
     function step(dir) {
       if (state.calendarMode === "month") state.cursor = addMonths(state.cursor, dir);
       else if (state.calendarMode === "week") state.cursor = addDays(state.cursor, dir * 7);
@@ -590,15 +623,18 @@ const _sfc_main$7 = {
     }
     function cellTodos(day) {
       const items = todosOn(day);
-      if (!items.length) return null;
+      const rollovers = rolloverRecordsOn(day);
+      if (!items.length && !rollovers.length) return null;
       const done = items.filter((todo) => todo.done).length;
-      const open = items.length - done;
+      const open = items.length - done + rollovers.length;
+      const total = items.length + rollovers.length;
       return {
-        total: items.length,
+        total,
         done,
         open,
-        density: Math.min(6, items.length),
-        title: `${items.length} 项待办 · ${open} 项未完成${done ? ` · ${done} 项已完成` : ""}；点击后在右侧查看详情`
+        rollover: rollovers.length,
+        density: Math.min(6, total),
+        title: `${total} 项记录 · ${open} 项未完成${done ? ` · ${done} 项已完成` : ""}${rollovers.length ? ` · ${rollovers.length} 项为顺延记录` : ""}；点击后在右侧查看详情`
       };
     }
     const selectedExp = computed(() => calendarExpenseSummary(expensesOn(state.selected)));
@@ -700,7 +736,8 @@ const _sfc_main$7 = {
                     key: 2,
                     class: normalizeClass(["month-todo-summary", {
                       busy: cellTodos(day).total >= 5,
-                      complete: !cellTodos(day).open
+                      complete: !cellTodos(day).open,
+                      rollover: cellTodos(day).rollover > 0
                     }]),
                     title: cellTodos(day).title,
                     "aria-label": cellTodos(day).title
@@ -902,6 +939,26 @@ const _sfc_main$7 = {
               ])
             ])) : createCommentVNode("", true),
             createBaseVNode("div", _hoisted_41$1, [
+              selectedRollovers.value.length ? (openBlock(), createElementBlock("section", _hoisted_rollover_history, [
+                createBaseVNode("div", _hoisted_rollover_history_head, [
+                  createBaseVNode("span", null, "当日未完成 · 顺延记录"),
+                  createBaseVNode("b", null, toDisplayString(selectedRollovers.value.length), 1)
+                ]),
+                createBaseVNode("div", _hoisted_rollover_history_rows, [
+                  (openBlock(true), createElementBlock(Fragment, null, renderList(selectedRollovers.value, (record) => {
+                    return openBlock(), createElementBlock("div", {
+                      key: record.key,
+                      class: "rollover-record"
+                    }, [
+                      createBaseVNode("span", _hoisted_rollover_record_state, "未完成"),
+                      createBaseVNode("div", _hoisted_rollover_record_copy, [
+                        createBaseVNode("div", _hoisted_rollover_record_title, toDisplayString(record.title), 1),
+                        createBaseVNode("div", _hoisted_rollover_record_meta, "已顺延至 " + toDisplayString(record.rolledTo) + " · " + toDisplayString(record.listName), 1)
+                      ])
+                    ]);
+                  }), 128))
+                ])
+              ])) : createCommentVNode("", true),
               (openBlock(true), createElementBlock(Fragment, null, renderList(selectedTodos.value, (t) => {
                 return openBlock(), createBlock(_sfc_main$8, {
                   key: t.id,
@@ -909,7 +966,7 @@ const _sfc_main$7 = {
                   "show-list": ""
                 }, null, 8, ["todo"]);
               }), 128)),
-              !selectedTodos.value.length ? (openBlock(), createElementBlock("div", _hoisted_42$1, [..._cache[17] || (_cache[17] = [
+              !selectedTodos.value.length && !selectedRollovers.value.length ? (openBlock(), createElementBlock("div", _hoisted_42$1, [..._cache[17] || (_cache[17] = [
                 createTextVNode(" 这天还没有安排", -1),
                 createBaseVNode("br", null, null, -1),
                 createTextVNode("在下面输入就能加一条 ", -1)
@@ -2988,8 +3045,14 @@ const _sfc_main = {
     };
     let stopNavigate = null;
     function onNavigate(target) {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(target?.date || "")) ? target.date : todayYmd();
+      if (target?.view === "calendar") {
+        state.cursor = date;
+        state.selected = date;
+        state.view = "calendar";
+        return;
+      }
       if (target?.view !== "expense") return;
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(target.date || "")) ? target.date : todayYmd();
       const goalId = typeof target.goalId === "string" ? target.goalId : null;
       state.cursor = date;
       state.selected = date;

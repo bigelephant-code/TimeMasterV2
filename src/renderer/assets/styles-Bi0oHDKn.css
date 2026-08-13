@@ -674,6 +674,87 @@ select:focus-visible,
   gap: 4px;
   min-height: 0;
 }
+.rollover-history {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 4px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border-soft));
+  border-radius: 10px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--warn) 8%, var(--bg-soft)), var(--bg-soft));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warn) 78%, transparent);
+  overflow: hidden;
+}
+.rollover-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 650;
+}
+.rollover-history-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rollover-history-head b {
+  flex: none;
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+  text-align: center;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.rollover-history-rows {
+  display: grid;
+  gap: 5px;
+}
+.rollover-record {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 16%, var(--border-soft));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+}
+.rollover-record-state {
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rollover-record-copy { min-width: 0; }
+.rollover-record-title,
+.rollover-record-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rollover-record-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+.rollover-record-meta {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
 .day-panel .quick {
   padding: 8px;
   border-top: 1px solid var(--border-soft);
@@ -1256,6 +1337,10 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
 }
 .cell.today .num { box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 28%, transparent); }
 .month-todo-summary { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent); }
+.month-todo-summary.rollover {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--warn) 76%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent);
+}
 .day-panel { width: 286px; border-left-color: var(--border-soft); background: linear-gradient(180deg, var(--bg-elev), color-mix(in srgb, var(--bg) 86%, var(--bg-elev))); }
 .day-panel .head { padding: 14px 14px 12px; border-bottom: 1px solid var(--border-soft); background: radial-gradient(circle at 20% 0%, var(--panel-glow), transparent 72%); }
 .day-panel .big { font-size: 30px; letter-spacing: -1px; }
