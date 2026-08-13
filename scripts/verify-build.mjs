@@ -9,6 +9,7 @@ const required = [
   'out/main/todo-rollovers.js',
   'out/main/todo-completions.js',
   'out/main/expense-categories.js',
+  'out/main/remote-reminders.js',
   'out/preload/index.js',
   'out/renderer/index.html',
   'out/renderer/widget.html'
@@ -18,7 +19,7 @@ for (const relative of required) {
   if (!existsSync(join(root, relative))) throw new Error(`Build output is missing: ${relative}`)
 }
 
-for (const relative of ['out/main/index.js', 'out/main/task-time.js', 'out/main/todo-rollovers.js', 'out/main/todo-completions.js', 'out/main/expense-categories.js', 'out/preload/index.js']) {
+for (const relative of ['out/main/index.js', 'out/main/task-time.js', 'out/main/todo-rollovers.js', 'out/main/todo-completions.js', 'out/main/expense-categories.js', 'out/main/remote-reminders.js', 'out/preload/index.js']) {
   const result = spawnSync(process.execPath, ['--check', join(root, relative)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stderr || `Syntax check failed: ${relative}`)
 }
@@ -35,6 +36,9 @@ if (!/require\(["']\.\/todo-completions\.js["']\)/.test(builtMain)) {
 }
 if (!/require\(["']\.\/expense-categories\.js["']\)/.test(builtMain)) {
   throw new Error('Built main process does not reference the emitted expense-category module.')
+}
+if (!/require\(["']\.\/remote-reminders\.js["']\)/.test(builtMain)) {
+  throw new Error('Built main process does not reference the emitted remote-reminder module.')
 }
 
 for (const page of ['index.html', 'widget.html']) {

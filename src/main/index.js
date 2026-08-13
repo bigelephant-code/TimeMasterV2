@@ -6,9 +6,24 @@ const node_crypto = require("node:crypto");
 const promises = require("node:fs/promises");
 const node_zlib = require("node:zlib");
 const node_url = require("node:url");
-const { normalizeTaskTime, taskStartTime, taskEndTime } = require("./task-time.js");
+const { normalizeTaskTime, taskStartTime, taskEndTime, taskEndsNextDay, taskRolloverEligible } = require("./task-time.js");
 const { normalizeTodoRolloverHistory, recordTodoRollover } = require("./todo-rollovers.js");
 const { normalizeTodoCompletionHistory, recordTodoCompletion } = require("./todo-completions.js");
+const {
+  DEFAULT_REMOTE_REMINDER_ENDPOINT,
+  normalizeRemoteReminderConfig,
+  normalizeQqbotTarget,
+  createReminderOccurrenceKey,
+  createReminderEventId,
+  buildOpenClawPayload,
+  deliverOpenClawReminder,
+  normalizeRemoteReminderOutbox,
+  enqueueRemoteReminder,
+  markRemoteReminderAttempting,
+  markRemoteReminderResult,
+  pruneRemoteReminderOutbox,
+  dueRemoteReminders
+} = require("./remote-reminders.js");
 const {
   defaultExpenseCategories,
   migrateExpenseCategories,
@@ -37,13 +52,8 @@ function taskDurationMinutes(todo) {
   if (start === null || end === null) return null;
   return end >= start ? end - start : 24 * 60 - start + end;
 }
-function taskEndsNextDay(todo) {
-  const start = timeMinutes(taskStartTime(todo));
-  const end = timeMinutes(taskEndTime(todo));
-  return start !== null && end !== null && end < start;
-}
 function taskReminderTime(todo) {
-  return taskEndTime(todo) || taskStartTime(todo);
+  return taskStartTime(todo) || taskEndTime(todo);
 }
 function taskTimeRangeLabel(todo) {
   const start = taskStartTime(todo);
@@ -124,7 +134,13 @@ let dataDir = "";
 let dataFile = "";
 let dataBackupFile = "";
 let settingsFile = "";
+let secretsFile = "";
+let remoteReminderOutboxFile = "";
 let recoveredDataFromBackup = false;
+let remoteReminderOutbox = normalizeRemoteReminderOutbox();
+let remoteReminderDrainPromise = null;
+let lastRemoteReminderTestAt = 0;
+const REMOTE_REMINDER_TEST_COOLDOWN_MS = 15 * 1e3;
 const MAX_EXPENSE_ENTRIES = 2e4;
 let data = {
   version: DATA_VERSION,
@@ -201,6 +217,13 @@ function defaultSettings() {
     // 分钟；null 表示默认不提醒
     // 小组件顶部的纪念日：date 在将来就是倒计时，在过去就是正计时
     countdown: { title: "", date: null },
+    remoteReminder: {
+      enabled: false,
+      endpoint: DEFAULT_REMOTE_REMINDER_ENDPOINT,
+      target: "",
+      accountId: "",
+      includeNote: false
+    },
     window: { width: 1040, height: 700, x: null, y: null },
     widget: {
       enabled: true,
@@ -301,6 +324,8 @@ function initStore() {
   dataFile = node_path.join(dataDir, "data.json");
   dataBackupFile = node_path.join(dataDir, "data.backup.json");
   settingsFile = node_path.join(dataDir, "settings.json");
+  secretsFile = node_path.join(dataDir, "secrets.json");
+  remoteReminderOutboxFile = node_path.join(dataDir, "remote-reminder-outbox.json");
   data = readDataWithBackup() || {
     version: DATA_VERSION,
     lists: [],
@@ -339,6 +364,19 @@ function initStore() {
   settings.window = { ...defaultSettings().window, ...settings.window || {} };
   settings.widget = { ...defaultSettings().widget, ...settings.widget || {} };
   settings.countdown = { ...defaultSettings().countdown, ...settings.countdown || {} };
+  const normalizedRemoteReminder = normalizeRemoteReminderConfig(settings.remoteReminder);
+  settings.remoteReminder = {
+    enabled: normalizedRemoteReminder.enabled,
+    endpoint: normalizedRemoteReminder.endpoint || DEFAULT_REMOTE_REMINDER_ENDPOINT,
+    target: normalizedRemoteReminder.target || "",
+    accountId: normalizedRemoteReminder.accountId || "",
+    includeNote: normalizedRemoteReminder.includeNote
+  };
+  remoteReminderOutbox = pruneRemoteReminderOutbox(readJson(remoteReminderOutboxFile, null), {
+    now: Date.now(),
+    recoverAttempting: true
+  });
+  writeRemoteReminderOutbox();
   if (recoveredDataFromBackup) scheduleFlush();
   if (data.lists.length === 0) {
     data.lists.push({
@@ -355,7 +393,7 @@ function initStore() {
   } catch (err) {
     console.error("[store] 初始备份写入失败：", err.message);
   }
-  return { dataDir, dataFile, settingsFile, dataBackupFile, preMigrationBackupFile };
+  return { dataDir, dataFile, settingsFile, secretsFile, remoteReminderOutboxFile, dataBackupFile, preMigrationBackupFile };
 }
 function migrateTodoTimes() {
   let changed = false;
@@ -391,16 +429,213 @@ function migrateTodoCompletionHistories() {
 function getSettings() {
   return settings;
 }
+function rendererSettings() {
+  const { remoteReminder: _remoteReminder, ...visible } = settings;
+  return visible;
+}
 function patchSettings(patch) {
   settings = {
     ...settings,
     ...patch,
     window: { ...settings.window, ...patch.window || {} },
     widget: { ...settings.widget, ...patch.widget || {} },
-    countdown: { ...settings.countdown, ...patch.countdown || {} }
+    countdown: { ...settings.countdown, ...patch.countdown || {} },
+    remoteReminder: { ...settings.remoteReminder, ...patch.remoteReminder || {} }
   };
   scheduleFlush();
   return settings;
+}
+function writeRemoteReminderOutbox() {
+  if (remoteReminderOutboxFile) writeJsonAtomic(remoteReminderOutboxFile, remoteReminderOutbox);
+}
+function remoteReminderSecretsRaw() {
+  if (!secretsFile || !node_fs.existsSync(secretsFile)) return {};
+  try {
+    const raw = node_fs.readFileSync(secretsFile, "utf8").trim();
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error("远程提醒密钥文件无法读取，请检查数据目录中的 secrets.json。");
+  }
+}
+function prepareRemoteReminderSecrets(token) {
+  const value = String(token || "");
+  if (!value) return null;
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法安全保存 Hook Token。");
+  const current = remoteReminderSecretsRaw();
+  return {
+    ...current,
+    version: 1,
+    remoteReminderHookToken: electron.safeStorage.encryptString(value).toString("base64")
+  };
+}
+function readRemoteReminderToken() {
+  if (!secretsFile) return "";
+  const secrets = remoteReminderSecretsRaw();
+  const encrypted = typeof secrets?.remoteReminderHookToken === "string" ? secrets.remoteReminderHookToken : "";
+  if (!encrypted) return "";
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法读取 Hook Token。");
+  try {
+    return electron.safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+  } catch {
+    throw new Error("已保存的 Hook Token 无法解密，请重新输入并保存。");
+  }
+}
+function publicRemoteReminderConfig() {
+  const normalized = normalizeRemoteReminderConfig(settings.remoteReminder);
+  let tokenConfigured = false;
+  let tokenError = null;
+  try {
+    tokenConfigured = !!readRemoteReminderToken();
+  } catch (error) {
+    tokenError = String(error?.message || error);
+  }
+  return {
+    config: {
+      enabled: normalized.enabled,
+      gatewayUrl: normalized.endpoint || DEFAULT_REMOTE_REMINDER_ENDPOINT,
+      target: normalized.target || "",
+      accountId: normalized.accountId || "",
+      includeNote: normalized.includeNote
+    },
+    tokenConfigured,
+    tokenError
+  };
+}
+function saveRemoteReminderConfig(input = {}) {
+  const rawToken = typeof input.token === "string" ? input.token.trim() : "";
+  const rawAccountId = typeof input.accountId === "string" ? input.accountId.trim() : "";
+  const normalized = normalizeRemoteReminderConfig({
+    enabled: input.enabled,
+    endpoint: input.gatewayUrl ?? input.endpoint,
+    target: input.target,
+    accountId: input.accountId,
+    includeNote: input.includeNote
+  });
+  if (!normalized.endpoint) throw new Error("Gateway 地址必须是本机 http://127.0.0.1、localhost 或 [::1] 的 /hooks/agent。");
+  if (input.enabled === true && !normalized.target) {
+    throw new Error("QQ 目标格式应为 qqbot:c2c:OPENID、qqbot:group:GROUP_OPENID 或 qqbot:channel:CHANNEL_ID。");
+  }
+  if (rawAccountId && !normalized.accountId) throw new Error("QQ accountId 不能包含空格或控制字符。");
+  if (rawToken && (rawToken.length > 4096 || /[\x00-\x1f\x7f]/.test(rawToken))) {
+    throw new Error("Hook Token 格式无效或长度超过限制。");
+  }
+  const preparedSecrets = rawToken ? prepareRemoteReminderSecrets(rawToken) : null;
+  if (input.enabled === true && !preparedSecrets && !readRemoteReminderToken()) {
+    throw new Error("请填写 OpenClaw Hook Token 后再启用远程提醒。");
+  }
+  const nextRemoteReminder = {
+    enabled: input.enabled === true,
+    endpoint: normalized.endpoint,
+    target: normalized.target || "",
+    accountId: normalized.accountId || "",
+    includeNote: normalized.includeNote
+  };
+  const now = Date.now();
+  const nextOutbox = normalizeRemoteReminderOutbox({
+    ...remoteReminderOutbox,
+    items: remoteReminderOutbox.items.map((item) => {
+      if (input.enabled !== true && ["pending", "retry", "attempting"].includes(item.status)) {
+        return { ...item, status: "cancelled", nextAttemptAt: null, updatedAt: now };
+      }
+      if (input.enabled === true && item.status === "blocked" && item.expiresAt >= now) {
+        return { ...item, status: "pending", nextAttemptAt: now, updatedAt: now };
+      }
+      return item;
+    })
+  });
+  const previousSettings = settings;
+  const previousOutbox = remoteReminderOutbox;
+  const previousSecrets = preparedSecrets ? remoteReminderSecretsRaw() : null;
+  try {
+    writeJsonAtomic(settingsFile, {
+      ...settings,
+      remoteReminder: nextRemoteReminder
+    });
+    writeJsonAtomic(remoteReminderOutboxFile, nextOutbox);
+    if (preparedSecrets) writeJsonAtomic(secretsFile, preparedSecrets);
+  } catch (error) {
+    try {
+      writeJsonAtomic(settingsFile, previousSettings);
+      writeJsonAtomic(remoteReminderOutboxFile, previousOutbox);
+      if (preparedSecrets) writeJsonAtomic(secretsFile, previousSecrets);
+    } catch (rollbackError) {
+      console.error("[remote-reminder] 配置保存回滚失败：", String(rollbackError?.message || rollbackError));
+    }
+    throw error;
+  }
+  settings = { ...settings, remoteReminder: nextRemoteReminder };
+  remoteReminderOutbox = nextOutbox;
+  void drainRemoteReminderQueue();
+  return { ok: true, message: "配置已安全保存。", ...publicRemoteReminderConfig() };
+}
+function ensureMainWindowSender(event) {
+  if (windowOf(event) !== getMainWindow()) throw new Error("远程提醒设置只能从时间大师主窗口操作。");
+}
+function remoteReminderConfigWithToken() {
+  const config = normalizeRemoteReminderConfig({ ...settings.remoteReminder, token: readRemoteReminderToken() });
+  if (!config.enabled) throw new Error("请先启用并保存 QQ Bot 主提醒。");
+  if (!config.endpoint) throw new Error("Gateway 地址无效。");
+  if (!config.token) throw new Error("尚未保存 OpenClaw Hook Token。");
+  return config;
+}
+async function probeRemoteReminderConnection() {
+  const config = remoteReminderConfigWithToken();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20 * 1e3);
+  try {
+    const response = await fetch(config.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${config.token}` },
+      body: JSON.stringify({ agentId: "timemaster-reminders" }),
+      redirect: "error",
+      signal: controller.signal
+    });
+    const body = (await response.text()).slice(0, 300).toLowerCase();
+    if (response.status === 400 && /message|required/.test(body)) {
+      return { ok: true, message: "OpenClaw Hook 已认证；本次未启动 AI，也未发送 QQ。" };
+    }
+    if (response.status === 401 || response.status === 403) throw new Error("Hook Token 未通过认证，请重新保存。");
+    throw new Error(`OpenClaw 返回 HTTP ${response.status}，未能确认 Hook 配置。`);
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("连接 OpenClaw 超时，请确认 Gateway 正在运行。");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+async function sendRemoteReminderTest() {
+  const config = remoteReminderConfigWithToken();
+  if (!config.target) throw new Error("请先保存有效的 QQ 目标。");
+  const requestedAt = Date.now();
+  if (requestedAt - lastRemoteReminderTestAt < REMOTE_REMINDER_TEST_COOLDOWN_MS) {
+    throw new Error("测试提醒发送过于频繁，请稍后再试。");
+  }
+  lastRemoteReminderTestAt = requestedAt;
+  const now = /* @__PURE__ */ new Date();
+  const date = localYmd$1(now);
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const todo = {
+    id: `settings-test-${Date.now()}`,
+    title: "时间大师测试提醒",
+    date,
+    startTime: time,
+    endTime: null,
+    remindBefore: 0,
+    note: "这是一条由设置页面主动发送的测试消息。"
+  };
+  const occurrence = createReminderOccurrenceKey(todo);
+  const eventId = createReminderEventId(todo, occurrence);
+  const result = await deliverOpenClawReminder({
+    endpoint: config.endpoint,
+    token: config.token,
+    eventId,
+    payload: buildOpenClawPayload(todo, config, { occurrenceKey: occurrence, eventId })
+  });
+  if (result.classification === "accepted") {
+    return { ok: true, message: "OpenClaw 已受理测试提醒；请到 QQ 确认是否最终收到。", runId: result.runId };
+  }
+  const detail = result.status ? `HTTP ${result.status}` : result.reason || "网络错误";
+  throw new Error(`OpenClaw 未受理测试提醒：${detail}`);
 }
 const nextOrder = (rows) => rows.length ? Math.max(...rows.map((r) => r.order ?? 0)) + 1 : 0;
 function normalizeReminder(todo) {
@@ -412,12 +647,14 @@ function localYmd$1(now = /* @__PURE__ */ new Date()) {
   const pad2 = (value) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
-function rollOverUnfinishedTodos(today = localYmd$1()) {
+function rollOverUnfinishedTodos(today = localYmd$1(), nowInput = /* @__PURE__ */ new Date()) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) return 0;
-  const now = Date.now();
+  const nowDate = nowInput instanceof Date ? nowInput : new Date(nowInput);
+  const now = Number.isFinite(nowDate.getTime()) ? nowDate.getTime() : Date.now();
   let changed = 0;
   for (const todo of data.todos) {
     if (todo.done || !/^\d{4}-\d{2}-\d{2}$/.test(todo.date || "") || todo.date >= today) continue;
+    if (!taskRolloverEligible(todo, nowDate)) continue;
     recordTodoRollover(todo, today, now);
     todo.date = today;
     todo.notifiedKey = null;
@@ -2224,8 +2461,8 @@ function applyWidgetSettings() {
 }
 function ensureWidgetEnabled() {
   if (getSettings().widget.enabled) return;
-  const next = patchSettings({ widget: { enabled: true } });
-  broadcast("settings:changed", next);
+  patchSettings({ widget: { enabled: true } });
+  pushSettings();
 }
 async function revealWidget() {
   if (morphUnavailable()) return false;
@@ -2418,7 +2655,7 @@ function pushSnapshot() {
   broadcast("data:changed", repo.snapshot());
 }
 function pushSettings() {
-  broadcast("settings:changed", getSettings());
+  broadcast("settings:changed", rendererSettings());
 }
 function registerIpc() {
   const handleTrusted = (channel, listener) => {
@@ -2428,7 +2665,7 @@ function registerIpc() {
     });
   };
   handleTrusted("data:snapshot", () => repo.snapshot());
-  handleTrusted("settings:get", () => getSettings());
+  handleTrusted("settings:get", () => rendererSettings());
   handleTrusted("list:create", (_e, name) => {
     const r = repo.createList(name);
     pushSnapshot();
@@ -2583,18 +2820,38 @@ function registerIpc() {
     const before = getSettings();
     const wasEnabled = before.widget.enabled;
     const wasAutoLaunch = before.autoLaunch;
-    const next = patchSettings(patch || {});
-    if (patch?.theme) electron.nativeTheme.themeSource = next.theme === "light" ? "light" : "dark";
-    if (patch?.widget) {
+    const safePatch = { ...patch || {} };
+    delete safePatch.remoteReminder;
+    const next = patchSettings(safePatch);
+    if (safePatch.theme) electron.nativeTheme.themeSource = next.theme === "light" ? "light" : "dark";
+    if (safePatch.widget) {
       if (next.widget.enabled && !wasEnabled) createWidgetWindow();
       else if (!next.widget.enabled && wasEnabled) destroyWidgetWindow();
       else applyWidgetSettings();
     }
-    if (patch?.autoLaunch !== void 0 && patch.autoLaunch !== wasAutoLaunch) {
+    if (safePatch.autoLaunch !== void 0 && safePatch.autoLaunch !== wasAutoLaunch) {
       setAutoLaunch(next.autoLaunch);
     }
     pushSettings();
-    return next;
+    return rendererSettings();
+  });
+  handleTrusted("remoteReminder:getConfig", (event) => {
+    ensureMainWindowSender(event);
+    return publicRemoteReminderConfig();
+  });
+  handleTrusted("remoteReminder:saveConfig", (event, input) => {
+    ensureMainWindowSender(event);
+    const result = saveRemoteReminderConfig(input || {});
+    pushSettings();
+    return result;
+  });
+  handleTrusted("remoteReminder:probe", async (event) => {
+    ensureMainWindowSender(event);
+    return probeRemoteReminderConnection();
+  });
+  handleTrusted("remoteReminder:test", async (event) => {
+    ensureMainWindowSender(event);
+    return sendRemoteReminderTest();
   });
   handleTrusted("win:minimize", (e) => {
     const win = windowOf(e);
@@ -2657,7 +2914,7 @@ function parseDueAt(todo) {
   if (!remindAt) return null;
   const [hh, mm] = remindAt.split(":").map(Number);
   const due = new Date(y, m - 1, d, hh, mm, 0, 0);
-  if (remindAt === todo.endTime && taskEndsNextDay(todo)) due.setDate(due.getDate() + 1);
+  if (!taskStartTime(todo) && remindAt === taskEndTime(todo) && taskEndsNextDay(todo)) due.setDate(due.getDate() + 1);
   return due.getTime();
 }
 function occurrenceKey(todo) {
@@ -2670,12 +2927,99 @@ function bodyOf(todo) {
   if (todo.note) bits.push(todo.note.slice(0, 80));
   return bits.join("  ·  ") || "该处理这条待办了";
 }
+function remoteReminderRouteKey(config) {
+  return node_crypto.createHash("sha256").update(JSON.stringify([
+    config.channel,
+    config.target,
+    config.accountId || ""
+  ])).digest("hex").slice(0, 24);
+}
+function queueRemoteReminder(todo, dueAt, fireAt, now = Date.now()) {
+  const config = normalizeRemoteReminderConfig(settings.remoteReminder);
+  if (!config.enabled || !config.target || isSmokeTest) return false;
+  const expiresAt = Math.max(dueAt, fireAt + GRACE_MS);
+  if (now < fireAt || now > expiresAt) return false;
+  const occurrenceKey2 = createReminderOccurrenceKey(todo);
+  const routeKey = remoteReminderRouteKey(config);
+  const eventId = createReminderEventId(todo, occurrenceKey2, routeKey);
+  const existed = remoteReminderOutbox.items.some((item) => item.eventId === eventId);
+  if (existed) return false;
+  remoteReminderOutbox = enqueueRemoteReminder(remoteReminderOutbox, {
+    eventId,
+    todoId: todo.id,
+    occurrenceKey: occurrenceKey2,
+    routeKey,
+    fireAt,
+    dueAt,
+    expiresAt
+  }, now);
+  if (remoteReminderOutbox.items.some((item) => item.eventId === eventId)) {
+    writeRemoteReminderOutbox();
+    return true;
+  }
+  return false;
+}
+function terminalizeInvalidRemoteReminder(item, status, reason, now) {
+  remoteReminderOutbox = markRemoteReminderResult(remoteReminderOutbox, item.eventId, {
+    classification: status,
+    status: null,
+    reason
+  }, now);
+}
+async function performRemoteReminderDrain() {
+  if (isSmokeTest) return;
+  for (const candidate of dueRemoteReminders(remoteReminderOutbox, Date.now())) {
+    const now = Date.now();
+    const item = remoteReminderOutbox.items.find((entry) => entry.eventId === candidate.eventId);
+    if (!item || !["pending", "retry"].includes(item.status) || item.nextAttemptAt > now) continue;
+    const publicConfig = normalizeRemoteReminderConfig(settings.remoteReminder);
+    if (!publicConfig.enabled || !publicConfig.endpoint || !publicConfig.target) break;
+    const config = normalizeRemoteReminderConfig({ ...settings.remoteReminder, token: readRemoteReminderToken() });
+    if (!config.enabled || !config.token) break;
+    const routeKey = remoteReminderRouteKey(config);
+    const todo = repo.rawTodos().find((row) => row.id === item.todoId);
+    if (!todo || todo.done || createReminderOccurrenceKey(todo) !== item.occurrenceKey || item.routeKey !== routeKey) {
+      terminalizeInvalidRemoteReminder(item, "cancelled", "todo_changed", now);
+      writeRemoteReminderOutbox();
+      continue;
+    }
+    if (now > item.expiresAt) {
+      terminalizeInvalidRemoteReminder(item, "expired", "delivery_window_expired", now);
+      writeRemoteReminderOutbox();
+      continue;
+    }
+    remoteReminderOutbox = markRemoteReminderAttempting(remoteReminderOutbox, item.eventId, now);
+    writeRemoteReminderOutbox();
+    const result = await deliverOpenClawReminder({
+      endpoint: config.endpoint,
+      token: config.token,
+      eventId: item.eventId,
+      payload: buildOpenClawPayload(todo, config, { occurrenceKey: item.occurrenceKey, eventId: item.eventId })
+    });
+    const liveItem = remoteReminderOutbox.items.find((entry) => entry.eventId === item.eventId);
+    if (liveItem?.status === "attempting") {
+      remoteReminderOutbox = markRemoteReminderResult(remoteReminderOutbox, item.eventId, result, Date.now());
+      writeRemoteReminderOutbox();
+    }
+  }
+  const beforePrune = JSON.stringify(remoteReminderOutbox);
+  const pruned = pruneRemoteReminderOutbox(remoteReminderOutbox, { now: Date.now() });
+  if (JSON.stringify(pruned) !== beforePrune) {
+    remoteReminderOutbox = pruned;
+    writeRemoteReminderOutbox();
+  }
+}
+function drainRemoteReminderQueue() {
+  if (remoteReminderDrainPromise) return remoteReminderDrainPromise;
+  remoteReminderDrainPromise = performRemoteReminderDrain().catch((error) => {
+    console.warn("[remote-reminder] OpenClaw 投递暂不可用：", String(error?.message || error));
+  }).finally(() => {
+    remoteReminderDrainPromise = null;
+  });
+  return remoteReminderDrainPromise;
+}
 function tick() {
   const rolledOver = repo.rollOverUnfinishedTodos() + repo.rollGoalPeriods();
-  if (!electron.Notification.isSupported()) {
-    if (rolledOver) onFired?.();
-    return;
-  }
   const now = Date.now();
   let changed = rolledOver > 0;
   for (const todo of repo.rawTodos()) {
@@ -2685,21 +3029,34 @@ function tick() {
     if (dueAt === null) continue;
     const fireAt = dueAt - Number(todo.remindBefore) * 60 * 1e3;
     if (now < fireAt) continue;
-    if (now - fireAt > GRACE_MS) continue;
-    const key = occurrenceKey(todo);
-    if (todo.notifiedKey === key) continue;
-    new electron.Notification({
-      title: todo.title || "待办提醒",
-      body: bodyOf(todo),
-      silent: false
-    }).show();
-    todo.notifiedKey = key;
-    changed = true;
+    const expiresAt = Math.max(dueAt, fireAt + GRACE_MS);
+    if (now <= expiresAt && electron.Notification.isSupported()) {
+      const key = occurrenceKey(todo);
+      if (todo.notifiedKey !== key) {
+        try {
+          new electron.Notification({
+            title: todo.title || "待办提醒",
+            body: bodyOf(todo),
+            silent: false
+          }).show();
+          todo.notifiedKey = key;
+          changed = true;
+        } catch (error) {
+          console.warn("[reminder] Windows 通知显示失败：", String(error?.message || error));
+        }
+      }
+    }
+    try {
+      queueRemoteReminder(todo, dueAt, fireAt, now);
+    } catch (error) {
+      console.warn("[remote-reminder] 写入投递队列失败：", String(error?.message || error));
+    }
   }
   if (changed) {
     repo.markFlushDirty();
     onFired?.();
   }
+  void drainRemoteReminderQueue();
 }
 function focusTick() {
   const session = repo.completeExpiredFocus();
@@ -2928,10 +3285,77 @@ async function runPackagedSmokeTest(main, widget) {
       node_fs.writeFileSync(node_path.join(captureDir, "matrix.png"), matrixCapture.toPNG());
       await main.webContents.executeJavaScript(`document.querySelector('button[title="设置"]')?.click()`);
       await delay(200);
+      await main.webContents.executeJavaScript(`document.querySelector('.remote-reminder-head .toggle')?.click()`);
+      await delay(120);
+      const remoteSettingsState = await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        const card = document.querySelector('.remote-reminder-card');
+        const target = document.querySelector('#remote-qq-target');
+        const rect = dialog?.getBoundingClientRect();
+        return {
+          expanded: card?.classList.contains('enabled') === true && Boolean(target),
+          withinViewport: Boolean(rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight),
+          scrollable: Boolean(dialog && dialog.scrollHeight >= dialog.clientHeight)
+        };
+      })()`);
+      if (!remoteSettingsState.expanded || !remoteSettingsState.withinViewport || !remoteSettingsState.scrollable) {
+        throw new Error(`远程提醒设置界面状态错误：${JSON.stringify(remoteSettingsState)}`);
+      }
+      const remoteScrollTop = await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        const card = document.querySelector('.remote-reminder-card');
+        if (!dialog || !card) return -1;
+        dialog.scrollTop = Math.max(0, card.offsetTop - 18);
+        return dialog.scrollTop;
+      })()`);
+      if (remoteScrollTop <= 0) throw new Error("远程提醒设置卡片无法滚动到可视区域。");
+      main.setOpacity(0);
+      main.showInactive();
+      await delay(180);
+      main.webContents.invalidate();
+      await delay(120);
       const settingsCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "settings.png"), settingsCapture.toPNG());
+      await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        const card = document.querySelector('.remote-reminder-card');
+        if (!dialog || !card) return false;
+        for (const child of dialog.children) {
+          if (child === card || child.classList.contains('dialog-actions')) continue;
+          child.dataset.smokeDisplay = child.style.display;
+          child.style.display = 'none';
+        }
+        dialog.dataset.smokeMaxHeight = dialog.style.maxHeight;
+        dialog.dataset.smokeOverflow = dialog.style.overflow;
+        dialog.style.maxHeight = 'none';
+        dialog.style.overflow = 'visible';
+        dialog.scrollTop = 0;
+        return true;
+      })()`);
+      await delay(120);
+      main.webContents.invalidate();
+      await delay(80);
+      const remoteSettingsCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "settings-remote.png"), remoteSettingsCapture.toPNG());
+      await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        if (!dialog) return false;
+        for (const child of dialog.children) {
+          if (!Object.prototype.hasOwnProperty.call(child.dataset, 'smokeDisplay')) continue;
+          child.style.display = child.dataset.smokeDisplay;
+          delete child.dataset.smokeDisplay;
+        }
+        dialog.style.maxHeight = dialog.dataset.smokeMaxHeight || '';
+        dialog.style.overflow = dialog.dataset.smokeOverflow || '';
+        delete dialog.dataset.smokeMaxHeight;
+        delete dialog.dataset.smokeOverflow;
+        return true;
+      })()`);
+      main.setOpacity(1);
       await main.webContents.executeJavaScript(`document.querySelector('.mask')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
       await delay(100);
+      const settingsDialogClosed = await main.webContents.executeJavaScript(`!document.querySelector('.settings-dialog')`);
+      if (!settingsDialogClosed) throw new Error("设置弹窗未能在视觉烟测后关闭。");
       main.webContents.send("app:navigate", { view: "expense", goalId: ledger.id, date: today });
       main.setSize(1280, 800);
       await delay(450);

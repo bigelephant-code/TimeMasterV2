@@ -33,6 +33,13 @@ It is designed for people who want one account-free Windows workspace to answer 
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
 
+### In development (not yet released): OpenClaw QQ Bot reminders
+
+- Remote reminders are off by default. When enabled, QQ Bot can be the primary remote channel. While TimeMaster is running, it independently attempts the Windows notification rather than skipping it after an OpenClaw or QQ failure, although Windows settings may still suppress presentation.
+- TimeMaster sends only the reminder title, date/time, and a note when the user explicitly chooses to include it to OpenClaw on the local loopback interface. OpenClaw may then call the user's configured model and QQ Bot; those services process data under their own configuration and policies.
+- TimeMaster's copy of the Hook token is encrypted separately with Electron `safeStorage` and is not written to ordinary `settings.json` or `data.json`; OpenClaw must still hold the same token in its configuration or runtime environment, protected separately with Windows ACLs. A 200 response from `/hooks/agent` means only that OpenClaw accepted the request, not that QQ delivered it. Proactive delivery can also depend on the target type, selected QQ account, and QQ interaction-window restrictions.
+- See the [OpenClaw QQ Bot reminder setup guide](docs/OPENCLAW_QQ_REMINDERS.md) for the local Gateway, restricted reminder agent, target formats, and verification steps.
+
 ### 0.1.11 formal release (2026-08-13)
 
 - Renames the widget feature to Focus Time and reorganizes its idle card around the session plan, today's total, and one clear start action.
@@ -105,7 +112,7 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.11; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management, rollover/completion history, and the visual refresh add no network destination or third-party data sharing.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather is the only intentionally network-backed feature in formal releases 0.1.3 through 0.1.11. The current unreleased source additionally contains an opt-in OpenClaw QQ Bot reminder path that is off by default. Ordinary task, focus, goal, and expense data remain local-first; only the documented reminder fields are passed through the local OpenClaw service after the user enables it.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.

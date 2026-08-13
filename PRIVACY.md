@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-13
 
-Applies to: the TimeMaster 0.1.11 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
+Applies to: the TimeMaster 0.1.11 formal Windows x64 release, the preserved TimeMaster V2 0.1.3 release artifact, and the optional OpenClaw reminder integration currently present only in unreleased source. Version-specific behavior is identified below.
 
-TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Expense-category, rollover-history, and interface changes add no new network destination or third-party data sharing.
+TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Ordinary records remain local-first. The unreleased OpenClaw reminder integration is off by default and sends only the fields documented below after the user explicitly enables it.
 
 Current released behavior refers to 0.1.11; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.11 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
 
@@ -20,6 +20,8 @@ That directory can contain:
 
 - `data.json`: lists, tasks and their automatic-rollover/completion history, goals, per-ledger expense-category definitions (including disabled categories), expense entries, focus sessions, and current focus state;
 - `settings.json`: appearance, window and widget settings, countdown settings, reminders, and related preferences;
+- `secrets.json`: TimeMaster's copy of the OpenClaw Hook token, encrypted separately with Electron `safeStorage`; this copy is not stored in ordinary settings or application data;
+- `remote-reminder-outbox.json`: bounded remote-reminder delivery metadata such as event identifiers, task/occurrence references, attempt state, and retry timing; it contains neither the Hook token nor a copy of the reminder text;
 - `data.backup.json`: a local recovery copy of the main data file;
 - `data.pre-v4-<timestamp>[-n].json`: a non-overwriting full copy created before a pre-v4 data migration; it remains local and is not automatically rotated or deleted;
 - files ending in `.broken-<timestamp>` when an unreadable JSON file is preserved instead of overwritten;
@@ -47,7 +49,7 @@ Each expense entry stores a stable category ID. Renaming a category changes the 
 
 ## Network activity
 
-Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in releases 0.1.3 through 0.1.11 that intentionally calls an Internet service.
+Core calendar, task, focus, goal, local reminder, and expense functions do not require an account or cloud service. Weather is the only feature in formal releases 0.1.3 through 0.1.11 that intentionally calls an Internet service. The current unreleased source also contains an optional OpenClaw QQ Bot reminder path, which is off by default.
 
 ### City search
 
@@ -77,9 +79,32 @@ Choosing “use system location” invokes Chromium's `navigator.geolocation` in
 
 Windows, Chromium, hardware, and network providers may participate in determining the device location before the result reaches the application. Their processing is controlled by the relevant Windows privacy settings and provider policies, not by this project. You can use manual city search instead of system location.
 
+### Optional OpenClaw QQ Bot reminders (unreleased source)
+
+When the user enables remote reminders, TimeMaster treats QQ Bot as an optional primary remote channel. While the TimeMaster process is running, its scheduler independently attempts the corresponding Windows notification and remote reminder; hiding the window to the tray can keep the process running, but fully exiting TimeMaster stops both scheduling paths. Remote QQ processing additionally requires the local OpenClaw Gateway to be running and reachable during the reminder or valid retry period. A remote failure does not cause TimeMaster to skip the local attempt, but it does not make either path guaranteed delivery.
+
+TimeMaster accepts only a local loopback OpenClaw `/hooks/agent` endpoint. At reminder time it can send:
+
+- the reminder title;
+- its date and start/time value;
+- the reminder note only when the user explicitly enables note inclusion;
+- the configured QQ target type and identifier, an optional QQ account identifier, and delivery-control metadata such as a stable event identifier.
+
+The application sends this request to the OpenClaw process on the same computer. OpenClaw may then send the content to a model provider selected by the user and to the configured QQ Bot destination. Those onward connections, provider retention, QQ account handling, and message delivery are controlled by the user's OpenClaw/QQ configuration and the relevant third-party policies, not by TimeMaster or this repository.
+
+The same Hook token crosses two separate local storage boundaries. TimeMaster encrypts **its copy** at rest with Electron `safeStorage` in `secrets.json`, separate from `settings.json` and `data.json`. Plaintext necessarily exists transiently in the password field while the user types it; after saving, that field is cleared, and TimeMaster does not return or prefill the saved copy in the renderer.
+
+OpenClaw must independently store or read `hooks.token` so its Gateway can authenticate requests. The current field does not support SecretRef; it is therefore commonly plaintext in `~/.openclaw/openclaw.json`, or supplied through local environment substitution visible to the process that starts the Gateway. Electron `safeStorage` does not encrypt or protect this OpenClaw-side copy. The OpenClaw configuration directory and any service, scheduled-task, or environment configuration carrying the value should have Windows ACLs restricted to the user/service identity that runs OpenClaw. Neither copy should be placed in Git, screenshots, public issues, logs, or ordinary unencrypted backups; any necessary secret backup should be encrypted and access-controlled. Suspected disclosure requires rotating the value in both OpenClaw and TimeMaster. The configured destination and optional account ID are operational metadata and may identify a person, group, channel, or bot account.
+
+An HTTP 200 response from `/hooks/agent` means only that OpenClaw accepted the request for processing. It does not prove that a model completed, that QQ accepted the message, or that a recipient received it. QQ proactive-message rules can restrict delivery according to destination type, bot/account selection, recent user interaction, platform policy, or rate limits.
+
+The Windows notification is an independent local fallback attempt, not a delivery guarantee. Windows notification permissions, per-application notification settings, Focus Assist/Do Not Disturb, or other operating-system state can suppress, delay, or hide its presentation. A sleeping computer or suspended process cannot schedule at the intended instant; after resume, TimeMaster catches up only while the reminder remains inside its bounded grace/delivery window and does not replay stale reminders indefinitely.
+
 ## What is not sent by the application
 
-Neither the 0.1.3 release code nor the 0.1.4 release code sends task titles, task notes, reminders, focus sessions, goals, expense-category names, expense entries, settings, or exported workbooks to Open-Meteo or to the project maintainer. They do not contain a login, synchronization service, analytics SDK, advertising SDK, or remote crash collector.
+Formal releases through 0.1.11 do not send task titles, task notes, reminders, focus sessions, goals, expense-category names, expense entries, settings, or exported workbooks to Open-Meteo or to the project maintainer. They do not contain a login, synchronization service, analytics SDK, advertising SDK, or remote crash collector.
+
+In the unreleased source, enabling OpenClaw reminders creates only the exception described above: reminder title and date/time, an explicitly included note, and required destination/delivery metadata can leave TimeMaster through the local OpenClaw service. TimeMaster does not add unrelated tasks, focus history, goals, expenses, expense-category names, weather location, or exported workbooks to that payload.
 
 This statement does not prevent Windows, security software, DNS providers, proxies, or other software on the computer or network from recording their own activity.
 
@@ -98,10 +123,10 @@ To remove all application-held data:
 1. Exit TimeMaster from its tray menu so it cannot write the files again.
 2. Preserve a copy first if you may need the records later.
 3. Uninstall the application if desired.
-4. In File Explorer, open `%APPDATA%` and delete only the `timemaster-v2` directory.
+4. In File Explorer, open `%APPDATA%` and delete only the `timemaster-v2` directory. This removes TimeMaster's encrypted Hook-token copy in `secrets.json` and the local `remote-reminder-outbox.json` state, but it does not remove or revoke the OpenClaw-side copy.
 5. Separately delete any exported `.xlsx` files from the locations you selected.
 
-There is no “erase all data” button in 0.1.3 or 0.1.4. Removing the directory also removes ordinary backups and `data.pre-v4-*` migration copies, and is irreversible unless you made another copy. The application cannot delete records retained independently by Open-Meteo, Windows, network providers, GitHub, or other third parties.
+There is no “erase all data” button in the documented formal releases. Removing the directory also removes ordinary backups, `data.pre-v4-*` migration copies, TimeMaster's encrypted local secret copy, and outbox metadata, and is irreversible unless you made another copy. Separately remove or rotate `hooks.token` in OpenClaw's configuration/environment when retiring the integration. Deleting TimeMaster data does not revoke credentials retained elsewhere or delete reminder content already retained by OpenClaw, a configured model provider, QQ, a recipient, Windows, network providers, GitHub, or another third party; use those services' own controls where applicable.
 
 ## GitHub interactions
 

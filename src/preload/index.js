@@ -59,6 +59,12 @@ const api = {
       return () => electron.ipcRenderer.off("settings:changed", handler);
     }
   },
+  remoteReminder: {
+    getConfig: () => electron.ipcRenderer.invoke("remoteReminder:getConfig"),
+    saveConfig: (input) => electron.ipcRenderer.invoke("remoteReminder:saveConfig", input),
+    probe: () => electron.ipcRenderer.invoke("remoteReminder:probe"),
+    test: () => electron.ipcRenderer.invoke("remoteReminder:test")
+  },
   win: {
     minimize: () => electron.ipcRenderer.invoke("win:minimize"),
     toggleMaximize: () => electron.ipcRenderer.invoke("win:toggleMaximize"),

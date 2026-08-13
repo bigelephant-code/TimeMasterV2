@@ -3003,7 +3003,276 @@ const _sfc_main$3 = {
     };
   }
 };
-const _hoisted_1$2 = { class: "dialog" };
+const REMOTE_REMINDER_DEFAULT_GATEWAY = "http://127.0.0.1:18789/hooks/agent";
+const RemoteReminderSettings = {
+  __name: "RemoteReminderSettings",
+  setup(__props) {
+    const api = window.api.remoteReminder;
+    const loading = ref(true);
+    const busy = ref("");
+    const dirty = ref(false);
+    const token = ref("");
+    const tokenConfigured = ref(false);
+    const status = ref({ kind: "", text: "" });
+    const draft = ref({
+      enabled: false,
+      gatewayUrl: REMOTE_REMINDER_DEFAULT_GATEWAY,
+      target: "",
+      accountId: "",
+      includeNote: false
+    });
+    const failureText = (error, fallback) => {
+      const raw = typeof error === "string" ? error : error?.message || error?.error || "";
+      const clean = String(raw).replace(/^Error invoking remote method '[^']+':\s*/i, "").replace(/^Error:\s*/i, "").trim();
+      return clean || fallback;
+    };
+    const assertOk = (result, fallback) => {
+      if (result && typeof result === "object" && result.ok === false) {
+        throw new Error(result.message || result.error || fallback);
+      }
+      return result;
+    };
+    const applyConfig = (config) => {
+      const source = config && typeof config === "object" ? config : {};
+      draft.value = {
+        enabled: Boolean(source.enabled),
+        gatewayUrl: String(source.gatewayUrl || REMOTE_REMINDER_DEFAULT_GATEWAY),
+        target: String(source.target || ""),
+        accountId: String(source.accountId || ""),
+        includeNote: Boolean(source.includeNote)
+      };
+    };
+    const load = async () => {
+      loading.value = true;
+      try {
+        if (!api?.getConfig) throw new Error("远程提醒接口尚未载入，请重启应用后再试");
+        const result = assertOk(await api.getConfig(), "读取远程提醒配置失败");
+        applyConfig(result?.config || result);
+        tokenConfigured.value = Boolean(result?.tokenConfigured);
+        dirty.value = false;
+        status.value = result?.tokenError ? {
+          kind: "error",
+          text: "已保存的 Hook Token 无法读取，请重新输入并保存配置"
+        } : { kind: "", text: "" };
+      } catch (error) {
+        status.value = { kind: "error", text: failureText(error, "读取远程提醒配置失败") };
+      } finally {
+        loading.value = false;
+      }
+    };
+    const updateDraft = (key, value) => {
+      draft.value = { ...draft.value, [key]: value };
+      dirty.value = true;
+      status.value = { kind: "hint", text: "配置有改动，保存后生效" };
+    };
+    const updateToken = (value) => {
+      token.value = value;
+      dirty.value = true;
+      status.value = { kind: "hint", text: "配置有改动，保存后生效" };
+    };
+    const save = async () => {
+      if (busy.value || loading.value) return;
+      busy.value = "save";
+      status.value = { kind: "hint", text: "正在安全保存配置…" };
+      try {
+        if (!api?.saveConfig) throw new Error("远程提醒接口尚未载入，请重启应用后再试");
+        const payload = {
+          enabled: Boolean(draft.value.enabled),
+          gatewayUrl: String(draft.value.gatewayUrl || "").trim(),
+          target: String(draft.value.target || "").trim(),
+          accountId: String(draft.value.accountId || "").trim(),
+          includeNote: Boolean(draft.value.includeNote),
+          token: token.value
+        };
+        const result = assertOk(await api.saveConfig(payload), "保存远程提醒配置失败");
+        if (result?.config) applyConfig(result.config);
+        tokenConfigured.value = typeof result?.tokenConfigured === "boolean" ? result.tokenConfigured : tokenConfigured.value || Boolean(token.value.trim());
+        token.value = "";
+        dirty.value = false;
+        status.value = { kind: "success", text: "配置已安全保存" };
+      } catch (error) {
+        status.value = { kind: "error", text: failureText(error, "保存远程提醒配置失败") };
+      } finally {
+        busy.value = "";
+      }
+    };
+    const runSavedAction = async (method, successText, workingText) => {
+      if (busy.value || loading.value || dirty.value || !tokenConfigured.value) return;
+      busy.value = method;
+      status.value = { kind: "hint", text: workingText };
+      try {
+        if (typeof api?.[method] !== "function") throw new Error("远程提醒接口尚未载入，请重启应用后再试");
+        const result = assertOk(await api[method](), method === "probe" ? "检查 OpenClaw 连接失败" : "提交测试提醒失败");
+        status.value = { kind: "success", text: result?.message || successText };
+      } catch (error) {
+        status.value = {
+          kind: "error",
+          text: failureText(error, method === "probe" ? "检查 OpenClaw 连接失败" : "提交测试提醒失败")
+        };
+      } finally {
+        busy.value = "";
+      }
+    };
+    const savedActionsReady = () => !loading.value && !busy.value && !dirty.value && tokenConfigured.value;
+    const savedActionTitle = () => dirty.value ? "请先保存配置" : tokenConfigured.value ? "" : "请先填写 Hook Token 并保存配置";
+    onMounted(load);
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("section", {
+        class: normalizeClass(["remote-reminder-card", { enabled: draft.value.enabled, loading: loading.value }]),
+        "aria-busy": loading.value || Boolean(busy.value)
+      }, [
+        createBaseVNode("span", { class: "remote-reminder-rail", "aria-hidden": "true" }, [
+          createBaseVNode("span", { class: "remote-reminder-rail-dot" })
+        ]),
+        createBaseVNode("div", { class: "remote-reminder-head" }, [
+          createBaseVNode("div", { class: "remote-reminder-copy" }, [
+            createBaseVNode("div", { class: "remote-reminder-title" }, [
+              createBaseVNode("span", { class: "remote-signal-mark", "aria-hidden": "true" }, [
+                createBaseVNode("i")
+              ]),
+              createBaseVNode("span", null, "QQ Bot 主提醒"),
+              createBaseVNode("span", {
+                class: normalizeClass(["remote-reminder-badge", { ready: tokenConfigured.value }])
+              }, loading.value ? "读取中" : draft.value.enabled ? tokenConfigured.value ? "已配置" : "待配置" : "未启用", 2)
+            ]),
+            createBaseVNode("div", { class: "remote-reminder-desc" }, "待办触发时优先发 QQ，并独立尝试 Windows 通知")
+          ]),
+          createBaseVNode("button", {
+            type: "button",
+            class: normalizeClass(["toggle", { on: draft.value.enabled }]),
+            role: "switch",
+            "aria-checked": draft.value.enabled,
+            "aria-label": "QQ Bot 主提醒",
+            disabled: loading.value || Boolean(busy.value),
+            onClick: () => updateDraft("enabled", !draft.value.enabled)
+          }, null, 10, ["aria-checked", "disabled"])
+        ]),
+        loading.value ? (openBlock(), createElementBlock("div", {
+          key: 0,
+          class: "remote-reminder-loading"
+        }, "正在读取安全配置…")) : draft.value.enabled ? (openBlock(), createElementBlock("div", {
+          key: 1,
+          class: "remote-reminder-body"
+        }, [
+          createBaseVNode("div", { class: "remote-reminder-form-grid" }, [
+            createBaseVNode("div", { class: "field remote-reminder-field full" }, [
+              createBaseVNode("label", { for: "remote-gateway-url" }, "OpenClaw Gateway 地址"),
+              createBaseVNode("input", {
+                id: "remote-gateway-url",
+                type: "url",
+                value: draft.value.gatewayUrl,
+                placeholder: REMOTE_REMINDER_DEFAULT_GATEWAY,
+                autocomplete: "off",
+                spellcheck: "false",
+                disabled: Boolean(busy.value),
+                onInput: (event) => updateDraft("gatewayUrl", event.target.value)
+              }, null, 40, ["value", "disabled"]),
+              createBaseVNode("div", { class: "remote-reminder-field-hint" }, "仅连接本机 OpenClaw（127.0.0.1 或 localhost）")
+            ]),
+            createBaseVNode("div", { class: "field remote-reminder-field full" }, [
+              createBaseVNode("label", { for: "remote-hook-token" }, "Hook Token"),
+              createBaseVNode("input", {
+                id: "remote-hook-token",
+                type: "password",
+                value: token.value,
+                placeholder: tokenConfigured.value ? "留空表示不更改" : "请输入 Hook Token",
+                maxlength: "4096",
+                autocomplete: "new-password",
+                spellcheck: "false",
+                disabled: Boolean(busy.value),
+                onInput: (event) => updateToken(event.target.value)
+              }, null, 40, ["value", "placeholder", "disabled"]),
+              createBaseVNode("div", {
+                class: normalizeClass(["remote-reminder-field-hint", { secure: tokenConfigured.value }])
+              }, tokenConfigured.value ? "时间大师副本已加密保存，留空表示不更改" : "时间大师保存的副本会加密，保存后不再回显", 2)
+            ]),
+            createBaseVNode("div", { class: "field remote-reminder-field" }, [
+              createBaseVNode("label", { for: "remote-qq-target" }, "QQ 目标"),
+              createBaseVNode("input", {
+                id: "remote-qq-target",
+                type: "text",
+                value: draft.value.target,
+                placeholder: "qqbot:c2c:OPENID",
+                autocomplete: "off",
+                spellcheck: "false",
+                disabled: Boolean(busy.value),
+                onInput: (event) => updateDraft("target", event.target.value)
+              }, null, 40, ["value", "disabled"])
+            ]),
+            createBaseVNode("div", { class: "field remote-reminder-field" }, [
+              createBaseVNode("label", { for: "remote-qq-account" }, "QQ accountId（可选）"),
+              createBaseVNode("input", {
+                id: "remote-qq-account",
+                type: "text",
+                value: draft.value.accountId,
+                placeholder: "多机器人时填写",
+                autocomplete: "off",
+                spellcheck: "false",
+                disabled: Boolean(busy.value),
+                onInput: (event) => updateDraft("accountId", event.target.value)
+              }, null, 40, ["value", "disabled"])
+            ])
+          ]),
+          createBaseVNode("div", { class: "remote-reminder-note-switch" }, [
+            createBaseVNode("div", null, [
+              createBaseVNode("div", { class: "k" }, "发送待办备注"),
+              createBaseVNode("div", { class: "d" }, "默认关闭；开启后备注会随提醒交给 OpenClaw")
+            ]),
+            createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass(["toggle", { on: draft.value.includeNote }]),
+              role: "switch",
+              "aria-checked": draft.value.includeNote,
+              "aria-label": "发送待办备注",
+              disabled: Boolean(busy.value),
+              onClick: () => updateDraft("includeNote", !draft.value.includeNote)
+            }, null, 10, ["aria-checked", "disabled"])
+          ]),
+          createBaseVNode("div", { class: "remote-reminder-actions" }, [
+            createBaseVNode("button", {
+              type: "button",
+              class: "primary",
+              disabled: loading.value || Boolean(busy.value) || !dirty.value && !token.value.trim(),
+              onClick: save
+            }, busy.value === "save" ? "保存中…" : "保存配置", 9, ["disabled"]),
+            createBaseVNode("button", {
+              type: "button",
+              class: "ghost",
+              disabled: !savedActionsReady(),
+              title: savedActionTitle(),
+              onClick: () => runSavedAction("probe", "OpenClaw Hook 已认证", "正在检查 OpenClaw Hook…")
+            }, busy.value === "probe" ? "检查中…" : "检查连接", 9, ["disabled", "title"]),
+            createBaseVNode("button", {
+              type: "button",
+              class: "ghost",
+              disabled: !savedActionsReady(),
+              title: savedActionTitle(),
+              onClick: () => runSavedAction("test", "OpenClaw 已受理", "正在提交测试提醒…")
+            }, busy.value === "test" ? "提交中…" : "发送测试提醒", 9, ["disabled", "title"])
+          ])
+        ])) : (openBlock(), createElementBlock("div", {
+          key: 2,
+          class: "remote-reminder-collapsed"
+        }, [
+          createBaseVNode("span", null, tokenConfigured.value ? "连接资料已安全保留，重新开启并保存后继续使用。" : "开启后配置本机 OpenClaw 与 QQ Bot；关闭不影响 Windows 通知。"),
+          dirty.value ? (openBlock(), createElementBlock("button", {
+            key: 0,
+            type: "button",
+            class: "primary",
+            disabled: Boolean(busy.value),
+            onClick: save
+          }, busy.value === "save" ? "保存中…" : "保存关闭状态", 9, ["disabled"])) : createCommentVNode("", true)
+        ])),
+        createBaseVNode("div", {
+          class: normalizeClass(["remote-reminder-status", status.value.kind || "idle"]),
+          role: status.value.kind === "error" ? "alert" : "status",
+          "aria-live": status.value.kind === "error" ? "assertive" : "polite"
+        }, status.value.text || " ", 10, ["role", "aria-live"])
+      ], 10, ["aria-busy"]);
+    };
+  }
+};
+const _hoisted_1$2 = { class: "dialog settings-dialog" };
 const _hoisted_2$2 = { class: "switch" };
 const _hoisted_3 = { class: "switch" };
 const _hoisted_4 = { class: "switch" };
@@ -3125,6 +3394,7 @@ const _sfc_main$2 = {
               }), 128))
             ], 40, _hoisted_10)
           ]),
+          createVNode(RemoteReminderSettings),
           _cache[21] || (_cache[21] = createBaseVNode("h3", { style: { "margin-top": "18px" } }, "关于", -1)),
           info.value ? (openBlock(), createElementBlock("div", _hoisted_12, [
             createTextVNode(" 时间大师 · v" + toDisplayString(info.value.version), 1),

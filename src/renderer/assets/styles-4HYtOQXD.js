@@ -7254,6 +7254,7 @@ const REMIND_OPTIONS = [
   { id: null, name: "不提醒" },
   { id: 0, name: "准点" },
   { id: 5, name: "提前 5 分钟" },
+  { id: 10, name: "提前 10 分钟" },
   { id: 15, name: "提前 15 分钟" },
   { id: 30, name: "提前 30 分钟" },
   { id: 60, name: "提前 1 小时" },

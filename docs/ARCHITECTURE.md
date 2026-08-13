@@ -29,6 +29,8 @@ Main process
         ├── 本地 JSON 数据仓库与备份
         ├── 窗口、托盘和原生通知
         ├── 专注与提醒调度
+        ├── 默认关闭的 OpenClaw 提醒队列
+        │   └── loopback OpenClaw → 用户配置的模型 / QQ Bot
         └── 费用台账 Excel 导出
 ```
 
@@ -49,6 +51,8 @@ Main process
 - `focus`：专注计时状态与完成记录；
 - `settings`：主题、窗口、小组件、天气和时间节点设置。
 
+开发中的 OpenClaw 远程提醒不改变上述主业务数据的本地优先模型。非敏感开关、loopback Gateway 地址、QQ 目标和可选账号 ID 作为设置保存；时间大师侧 Hook token 副本由 Electron `safeStorage` 加密后单独写入 `secrets.json`，不进入 `settings.json` 或 `data.json`。OpenClaw 侧仍需在其配置或运行环境中持有同一 token，并作为独立的 ACL 保护边界。`remote-reminder-outbox.json` 只保留有界的事件标识、待办/发生项引用、尝试状态与重试时间等投递元数据，不保存 Hook token、QQ 目标或提醒正文。
+
 `data.backup.json` 与主数据通常位于同一磁盘，它是便利恢复副本，不是异地或版本化灾备。v3→v4 迁移会在规范化前另写一份不覆盖、不会自动轮换的 `data.pre-v4-<timestamp>[-n].json`；它便于失败恢复，也会延长本地敏感数据的保留时间。变更数据格式前必须使用复制后的脱敏 fixture 测试迁移，不能把唯一一份真实用户数据作为开发样本。
 
 费用类别在 v4 中使用稳定 ID 关联流水。重命名只改变显示名称；停用通过 `archivedAt` 逻辑归档，不会删除类别定义或改写既有费用。v3→v4 迁移会物化原有七个固定类别并保留 `catNames` 自定义名称，不改写费用金额、日期、备注或类别 ID。若旧数据包含目录外的类别 ID，迁移会把它保留为已归档的遗留分类，使金额继续进入历史汇总和导出，而不是被静默忽略。
@@ -65,6 +69,15 @@ Excel 对账以稳定类别 ID 而不是可变显示名称作为汇总键，并�
 - `https://geocoding-api.open-meteo.com`
 
 城市搜索文本发送到地理编码接口；保存的经纬度取整后发送到天气预报接口。核心任务、专注、目标和费用数据不会加入这些请求。网络元数据以及 Open-Meteo、Windows/Chromium 定位链路的处理边界见 [PRIVACY.md](../PRIVACY.md)。
+
+当前未发布源码另包含默认关闭的 OpenClaw QQ Bot 远程提醒。用户输入 token 时明文会短暂存在于 renderer 的密码框中，但保存后立即清空且永不回填；后续链路由 Electron 主进程读取加密值并调用本机 loopback 上的 `/hooks/agent`，renderer 不直接发起该网络请求。每次提醒的处理顺序为：
+
+1. 时间大师进程运行时，本地调度器独立尝试 Windows 通知；
+2. 若用户已开启远程提醒，则把标题、日期/时间和用户明确选择的备注组成有界载荷；
+3. 主进程使用 Bearer Hook token 和稳定事件标识投递至本机 OpenClaw；
+4. OpenClaw 根据用户配置选择模型、QQ Bot 目标类型（私聊、群或频道）和可选账号后继续外部投递。
+
+`/hooks/agent` 返回 200 只表示 OpenClaw 已受理，不是 QQ 送达回执。QQ 主动消息还可能受目标类型、所选账号、最近用户交互窗口、限流和平台政策限制。因此状态只能表述“OpenClaw 已受理”，不能宣称“QQ 已送达”；Windows 通知是独立尝试的本地兜底，但其可见展示仍受 Windows 通知设置影响。
 
 ## 产品身份与兼容性
 

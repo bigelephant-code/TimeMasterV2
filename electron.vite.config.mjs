@@ -13,7 +13,8 @@ export default defineConfig({
           'task-time': r('src/main/task-time.js'),
           'todo-rollovers': r('src/main/todo-rollovers.js'),
           'todo-completions': r('src/main/todo-completions.js'),
-          'expense-categories': r('src/main/expense-categories.js')
+          'expense-categories': r('src/main/expense-categories.js'),
+          'remote-reminders': r('src/main/remote-reminders.js')
         }
       }
     }

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { test } from 'node:test'
 
 const require = createRequire(import.meta.url)
-const { normalizeTaskTime, taskStartTime, taskEndTime } = require('../src/main/task-time.js')
+const { normalizeTaskTime, taskStartTime, taskEndTime, taskEndsNextDay, taskRolloverEligible } = require('../src/main/task-time.js')
 
 test('normalizeTaskTime accepts only trimmed 24-hour HH:MM values', () => {
   const cases = [
@@ -63,4 +63,13 @@ test('taskStartTime and taskEndTime normalize common task combinations', () => {
   for (const [todo, expected] of cases) {
     assert.deepEqual([taskStartTime(todo), taskEndTime(todo)], expected)
   }
+})
+
+test('cross-midnight tasks roll over only after their next-day end time', () => {
+  const overnight = { date: '2026-08-12', startTime: '23:30', endTime: '00:30' }
+  assert.equal(taskEndsNextDay(overnight), true)
+  assert.equal(taskRolloverEligible(overnight, new Date(2026, 7, 13, 0, 0)), false)
+  assert.equal(taskRolloverEligible(overnight, new Date(2026, 7, 13, 0, 29, 59)), false)
+  assert.equal(taskRolloverEligible(overnight, new Date(2026, 7, 13, 0, 30)), true)
+  assert.equal(taskRolloverEligible({ ...overnight, endTime: '23:45' }, new Date(2026, 7, 13, 0, 0)), true)
 })

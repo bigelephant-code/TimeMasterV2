@@ -1687,3 +1687,323 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
   .month-todo-status .finished em { color: var(--ok); }
   .month-todo-density { gap: 1px; }
 }
+
+/* QQ Bot 远程提醒：窄状态轨道把“本地 -> OpenClaw”连接感带进现有设置体系。 */
+.settings-dialog {
+  width: min(540px, calc(100vw - 32px));
+  max-height: min(92vh, 780px);
+  padding: 18px 20px 0;
+  overscroll-behavior: contain;
+}
+
+.settings-dialog > .dialog-actions {
+  position: sticky;
+  z-index: 3;
+  bottom: 0;
+  margin: 18px -20px 0;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.remote-reminder-card {
+  position: relative;
+  overflow: hidden;
+  margin: 14px 0 4px;
+  padding: 14px 14px 11px 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+
+.remote-reminder-card.enabled {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+}
+
+.remote-reminder-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: color-mix(in srgb, var(--text-faint) 38%, transparent);
+  transition: background 0.16s ease;
+}
+
+.remote-reminder-card.enabled .remote-reminder-rail {
+  background: var(--accent);
+}
+
+.remote-reminder-rail-dot {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--bg-soft);
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-faint) 20%, transparent);
+  transform: translateX(-50%);
+}
+
+.remote-reminder-card.enabled .remote-reminder-rail-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.remote-reminder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.remote-reminder-copy {
+  min-width: 0;
+}
+
+.remote-reminder-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.remote-signal-mark {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev));
+}
+
+.remote-signal-mark::before,
+.remote-signal-mark::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  border-radius: 50%;
+}
+
+.remote-signal-mark::after {
+  inset: 8px;
+  border: 0;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.remote-signal-mark i {
+  display: none;
+}
+
+.remote-reminder-badge {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--bg-elev) 76%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.remote-reminder-badge.ready {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--border));
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 8%, var(--bg-elev));
+}
+
+.remote-reminder-desc {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.remote-reminder-loading,
+.remote-reminder-collapsed {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.remote-reminder-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.remote-reminder-collapsed span {
+  min-width: 0;
+}
+
+.remote-reminder-collapsed button {
+  min-height: 29px;
+  flex: none;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.remote-reminder-body {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.remote-reminder-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 11px 10px;
+}
+
+.remote-reminder-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.remote-reminder-field.full {
+  grid-column: 1 / -1;
+}
+
+.remote-reminder-field input {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.remote-reminder-field-hint {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.remote-reminder-field-hint.secure {
+  color: var(--ok);
+}
+
+.remote-reminder-note-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-elev) 68%, transparent);
+}
+
+.remote-reminder-note-switch .k {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.remote-reminder-note-switch .d {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.remote-reminder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.remote-reminder-actions button {
+  min-height: 31px;
+  white-space: nowrap;
+}
+
+.remote-reminder-status {
+  min-height: 17px;
+  margin-top: 8px;
+  padding: 0 2px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.remote-reminder-status.idle {
+  min-height: 0;
+  margin-top: 0;
+}
+
+.remote-reminder-status.success {
+  color: var(--ok);
+}
+
+.remote-reminder-status.error {
+  color: var(--danger);
+}
+
+.remote-reminder-status.hint {
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .settings-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    padding-inline: 14px;
+  }
+
+  .settings-dialog > .dialog-actions {
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+
+  .remote-reminder-card {
+    padding-right: 11px;
+  }
+
+  .remote-reminder-head {
+    align-items: flex-start;
+  }
+
+  .remote-reminder-collapsed {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .remote-reminder-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .remote-reminder-field.full {
+    grid-column: auto;
+  }
+
+  .remote-reminder-actions button {
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .remote-reminder-actions button:first-child {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remote-reminder-rail,
+  .remote-reminder-card .toggle,
+  .remote-reminder-card .toggle::after {
+    transition: none;
+  }
+}
