@@ -53,7 +53,7 @@ for (const htmlName of ['index.html', 'widget.html']) {
 }
 
 if (pkg.name !== 'timemaster-v2' || pkg.build?.appId !== 'com.timemaster.v2') {
-  throw new Error('V2 产品身份被意外修改，可能导致安装或用户数据冲突。')
+  throw new Error('内部产品身份被意外修改，可能导致安装或用户数据冲突。')
 }
 
 const manifest = readFileSync(join(root, 'docs', 'runtime-0.1.3.sha256'), 'utf8')

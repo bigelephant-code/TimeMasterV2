@@ -1545,8 +1545,8 @@ function buildExpenseWorkbook({
       name: "docProps/core.xml",
       content: `${XML_DECL}
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:creator>时间大师 V2</dc:creator>
-  <cp:lastModifiedBy>时间大师 V2</cp:lastModifiedBy>
+  <dc:creator>时间大师</dc:creator>
+  <cp:lastModifiedBy>时间大师</cp:lastModifiedBy>
   <dc:title>${escapeXml(workbookGoal.name || "费用台账")} 对账导出</dc:title>
   <dc:subject>费用台账明细与汇总</dc:subject>
   <dcterms:created xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:created>
@@ -1557,7 +1557,7 @@ function buildExpenseWorkbook({
       name: "docProps/app.xml",
       content: `${XML_DECL}
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>时间大师 V2</Application>
+  <Application>时间大师</Application>
   <AppVersion>${escapeXml(appVersion || "0.0.0")}</AppVersion>
   <TitlesOfParts><vt:vector size="2" baseType="lpstr"><vt:lpstr>对账汇总</vt:lpstr><vt:lpstr>费用明细</vt:lpstr></vt:vector></TitlesOfParts>
 </Properties>`
@@ -2727,7 +2727,7 @@ if (!gotLock) {
   electron.app.whenReady().then(bootstrap).catch((error) => {
     console.error("[bootstrap] 启动失败：", error);
     try {
-      electron.dialog.showErrorBox("时间大师 V2 无法启动", String(error?.message || error));
+      electron.dialog.showErrorBox("时间大师无法启动", String(error?.message || error));
     } finally {
       electron.app.quit();
     }
@@ -2783,6 +2783,7 @@ async function runPackagedSmokeTest(main, widget) {
       const tomorrowDate = /* @__PURE__ */ new Date();
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       const tomorrowForTasks = localYmd$1(tomorrowDate);
+      const smokeTodos = [];
       for (const todo of [
         { listId: smokeList.id, title: "整理 0.1.7 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
         { listId: smokeList.id, title: "完善开源项目文档", date: todayForTasks, startTime: "19:15", endTime: "20:45", priority: 2, quadrant: 2 },
@@ -2793,7 +2794,8 @@ async function runPackagedSmokeTest(main, widget) {
         { listId: personalList.id, title: "处理待办归档", date: todayForTasks, startTime: "14:00", endTime: "14:30", priority: 1, quadrant: 3 },
         { listId: smokeList.id, title: "准备发布说明", date: todayForTasks, startTime: "15:00", endTime: "15:40", priority: 2, quadrant: 2 },
         { listId: personalList.id, title: "复盘本周安排", date: todayForTasks, startTime: "21:00", endTime: "21:30", priority: 1, quadrant: 4 }
-      ]) repo.createTodo(todo);
+      ]) smokeTodos.push(repo.createTodo(todo));
+      for (const todo of smokeTodos.filter((item) => item.date === todayForTasks).slice(0, 3)) repo.toggleTodo(todo.id);
       const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
       const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
       repo.renameExpenseCategory(ledger.id, "office", "软件订阅");
@@ -2826,6 +2828,12 @@ async function runPackagedSmokeTest(main, widget) {
       await delay(450);
       const calendarCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "calendar.png"), calendarCapture.toPNG());
+      main.setSize(880, 620);
+      await delay(250);
+      const compactCalendarCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "calendar-compact.png"), compactCalendarCapture.toPNG());
+      main.setSize(1280, 800);
+      await delay(250);
       await main.webContents.executeJavaScript(`[...document.querySelectorAll('.nav-item')].find((el) => el.textContent.includes('全部待办'))?.click()`);
       await delay(250);
       const todoCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
@@ -2888,7 +2896,7 @@ async function runPackagedSmokeTest(main, widget) {
 }
 function buildTray() {
   tray = new electron.Tray(trayIcon());
-  tray.setToolTip("时间大师 V2");
+  tray.setToolTip("时间大师");
   refreshTrayMenu();
   tray.on("click", () => {
     const main = getMainWindow();

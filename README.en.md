@@ -1,4 +1,4 @@
-# TimeMaster V2
+# TimeMaster
 
 [![License: MIT](https://img.shields.io/github/license/bigelephant-code/TimeMasterV2)](LICENSE)
 [![CI](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml/badge.svg)](https://github.com/bigelephant-code/TimeMasterV2/actions/workflows/validate.yml)
@@ -7,18 +7,18 @@
 
 [简体中文](README.md) | English
 
-TimeMaster V2 is a local-first Windows productivity workspace that combines a calendar, task lists, an Eisenhower matrix, focus sessions, long-running goals, an expense ledger, and a desktop widget.
+TimeMaster is a local-first Windows productivity workspace that combines a calendar, task lists, an Eisenhower matrix, focus sessions, long-running goals, an expense ledger, and a desktop widget.
 
 It is designed for people who want one account-free Windows workspace to answer five practical questions: what to do today, what matters most, how long work took, how goals are progressing, and what a project cost—without uploading personal task data by default.
 
 <p align="center">
-  <img src="docs/images/widget.png" width="420" alt="TimeMaster V2 desktop widget with fictional demo data">
+  <img src="docs/images/widget.png" width="420" alt="TimeMaster desktop widget with fictional demo data">
 </p>
 <p align="center"><sub>The desktop widget brings dates, focus, goals, expenses, and the Eisenhower matrix into one glanceable view. Screenshot uses fictional demo data.</sub></p>
 
 [![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.7` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
+> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.8` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
 
 ## Features
 
@@ -32,6 +32,11 @@ It is designed for people who want one account-free Windows workspace to answer 
 | Expense ledger | Date-based entries, corrections, history, and Excel reconciliation export |
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
+
+### 0.1.8 formal release (2026-08-13)
+
+- Month cells show separate incomplete and completed counts in a compact two-row layout that stays within narrow cell boundaries.
+- The public product name is now “TimeMaster”; internal application identity and the existing data directory remain unchanged for upgrade compatibility.
 
 ### 0.1.7 formal release (2026-08-13)
 
@@ -77,16 +82,16 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.7; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management and the visual refresh add no network destination or third-party data sharing.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.8; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management and the visual refresh add no network destination or third-party data sharing.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.
 
-Local-first does not mean invulnerable: TimeMaster V2 does not encrypt its application data or exported workbooks, so malware or another process running with the same user privileges can still read them.
+Local-first does not mean invulnerable: TimeMaster does not encrypt its application data or exported workbooks, so malware or another process running with the same user privileges can still read them.
 
 ## Installer integrity
 
-The formal `0.1.7` artifact is the Windows x64 NSIS installer `TimeMasterV2-Setup-0.1.7.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
+The formal `0.1.8` artifact is the Windows x64 NSIS installer `TimeMaster-Setup-0.1.8.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
 
 The original 0.1.3 artifact remains preserved as the recovery source and immutable reference. Its filename and SHA-256 are recorded below.
 
@@ -144,7 +149,7 @@ The smoke test uses explicitly isolated temporary `userData` and session directo
 ## Source and version boundaries
 
 ```text
-src/                       editable, buildable source-equivalent input for 0.1.7
+src/                       editable, buildable source-equivalent input for 0.1.8
 runtime/                   immutable golden reference extracted from the original 0.1.3 app.asar
 legacy/litecal-0.1.0/      historical modular LiteCal 0.1.0 source, for migration reference only
 tests/                     IPC and security contract tests
@@ -158,4 +163,4 @@ The original installer contained neither source maps nor the original Vue single
 
 Real bug reports, feature proposals, and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Never attach real tasks, expenses, precise locations, tokens, or local absolute paths to public issues, logs, or screenshots.
 
-TimeMaster V2 is released under the [MIT License](LICENSE). Direct runtime dependencies and their complete license texts are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+TimeMaster is released under the [MIT License](LICENSE). Direct runtime dependencies and their complete license texts are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

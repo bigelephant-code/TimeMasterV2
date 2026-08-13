@@ -509,30 +509,55 @@ select:focus-visible,
 
 .month-todo-summary {
   display: grid;
-  gap: 5px;
+  box-sizing: border-box;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
   margin-top: 5px;
-  padding: 6px 7px;
+  padding: 5px 6px;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 7%, var(--bg-soft));
   color: var(--text-dim);
+  overflow: hidden;
 }
-.month-todo-count {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-start;
-  gap: 5px;
+.month-todo-status {
+  display: grid;
+  gap: 3px;
   min-width: 0;
-  font-size: 10px;
+}
+.month-todo-status > span {
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 9px;
   line-height: 1;
   white-space: nowrap;
 }
-.month-todo-count b {
-  color: var(--text);
-  font-size: 13px;
+.month-todo-status i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.month-todo-status em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-style: normal;
+  text-overflow: ellipsis;
+}
+.month-todo-status .status-label-short { display: none; }
+.month-todo-status b {
+  font-size: 11px;
   font-weight: 780;
   font-variant-numeric: tabular-nums;
 }
+.month-todo-status .pending i { background: var(--warn); box-shadow: 0 0 5px color-mix(in srgb, var(--warn) 36%, transparent); }
+.month-todo-status .pending b { color: var(--warn); }
+.month-todo-status .finished i { background: var(--ok); }
+.month-todo-status .finished b { color: var(--ok); }
 .month-todo-density {
   display: grid;
   grid-template-columns: repeat(6, minmax(3px, 1fr));
@@ -1288,4 +1313,15 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
   .nav-item { gap: 8px; padding-inline: 9px; }
   .calendar-wrap { grid-template-columns: minmax(0, 1fr) 250px; }
   .day-panel { width: 250px; }
+  .cell { padding: 4px; }
+  .month-todo-summary { gap: 3px; padding: 4px 3px; }
+  .month-todo-status { gap: 2px; }
+  .month-todo-status > span { grid-template-columns: minmax(0, 1fr) auto; gap: 2px; font-size: 9px; }
+  .month-todo-status i { display: none; }
+  .month-todo-status b { font-size: 10px; }
+  .month-todo-status .status-label-full { display: none; }
+  .month-todo-status .status-label-short { display: inline; }
+  .month-todo-status .pending em { color: var(--warn); }
+  .month-todo-status .finished em { color: var(--ok); }
+  .month-todo-density { gap: 1px; }
 }

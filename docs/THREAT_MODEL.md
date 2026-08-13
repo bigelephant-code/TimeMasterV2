@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-08-13
 
-Target: the TimeMaster V2 0.1.7 formal release and the preserved 0.1.3 release artifact on Windows x64
+Target: the TimeMaster 0.1.8 formal release and the preserved TimeMaster V2 0.1.3 release artifact on Windows x64
 
 This is a practical threat model for maintainers and reviewers. It describes the current design and residual risks; it is not a security certification.
 
@@ -47,8 +47,8 @@ The main window's Content Security Policy does not permit Open-Meteo. The widget
 
 | Threat | Current controls | Residual risk |
 |---|---|---|
-| Tampered or impersonated installer | Official release hashes and documented recovery provenance | Both the formal 0.1.7 Windows x64 installer and preserved 0.1.3 installer are not Authenticode-signed; a hash is useful only when obtained through a trusted channel |
-| Local malware or another user reading records | Windows user-profile directory boundaries | Application data and exported workbooks are not encrypted by TimeMaster V2; a process running as the user can read or change them |
+| Tampered or impersonated installer | Official release hashes and documented recovery provenance | Both the formal 0.1.8 Windows x64 installer and preserved 0.1.3 installer are not Authenticode-signed; a hash is useful only when obtained through a trusted channel |
+| Local malware or another user reading records | Windows user-profile directory boundaries | Application data and exported workbooks are not encrypted by TimeMaster; a process running as the user can read or change them |
 | Renderer compromise reaching native APIs | Renderer sandbox, context isolation, Node integration disabled, preload allowlist, explicit IPC handlers, CSP | A renderer exploit may still reach capabilities exposed by a vulnerable or overly permissive IPC path |
 | Malformed or corrupted data | Temporary-file-and-rename writes, `data.backup.json`, non-overwriting pre-v4 migration copies, malformed-file preservation, model normalization | Backups and primary data live on the same disk; migration copies are not automatically rotated and can increase local sensitive-data retention; none protects against disk loss or ransomware |
 | Location disclosure | Location requested only by the widget after the user selects system location; coordinates rounded to two decimals; manual search alternative | Coordinates, source IP, request time, and search text can still identify or approximate a user; OS/browser location providers are outside this repository's control |
@@ -72,7 +72,7 @@ The ordinary recovery file and the automatically created `data.pre-v4-*` source 
 
 In 0.1.5, deleting an expense-category button is implemented as an audit-preserving archive, not erasure. The category definition remains until the application data is removed; linked entries remain visible while retained, but the ledger automatically keeps only the newest 20,000 expense rows. Previously exported workbooks must be deleted separately. Renaming changes the label displayed for linked historical entries but does not rewrite their amounts, dates, notes, or IDs. The v3→v4 migration therefore requires explicit tests that preserve these relationships and keep legacy amounts visible.
 
-The 0.1.7 formal Windows x64 installer is unsigned. This threat model describes its finalized behavior and risk boundary but does not claim that a GitHub Release asset has already been uploaded.
+The 0.1.8 formal Windows x64 installer is unsigned. This threat model describes its finalized behavior and risk boundary but does not claim that a GitHub Release asset has already been uploaded.
 
 Uninstall is configured with `deleteAppDataOnUninstall: false`. This reduces accidental loss but means uninstalling is not a privacy erase. Complete deletion requires removing the exact V2 user-data directory after exit. LiteCal V1 uses a different directory and must not be merged or deleted as part of V2 cleanup.
 

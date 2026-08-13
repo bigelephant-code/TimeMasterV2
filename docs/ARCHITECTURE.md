@@ -2,10 +2,10 @@
 
 ## 版本与源码边界
 
-TimeMaster V2 当前存在三个必须明确区分的层次：
+时间大师当前存在三个必须明确区分的层次：
 
 ```text
-src/                       0.1.7 当前可编辑、可构建输入
+src/                       0.1.8 当前可编辑、可构建输入
         │ electron-vite build
         ▼
 out/                       生成的主进程、preload 与 renderer 产物
@@ -14,7 +14,7 @@ runtime/                   原始 0.1.3 app.asar 的不可变黄金参考
 legacy/litecal-0.1.0/      历史 LiteCal 0.1.0 模块化源码，仅供迁移参考
 ```
 
-`src/` 是从项目所有者制作的 0.1.3 产物重建的 source-equivalent 实现，不是丢失的原始源码。`runtime/` 不参与当前构建，只用于哈希、接口和行为核对。`legacy/` 也不参与根构建；其中的 Vue SFC 和模块可帮助后续恢复清晰边界，但不能直接视为 TimeMaster V2 0.1.3 的实现。
+`src/` 是从项目所有者制作的 0.1.3 产物重建的 source-equivalent 实现，不是丢失的原始源码。`runtime/` 不参与当前构建，只用于哈希、接口和行为核对。`legacy/` 也不参与根构建；其中的 Vue SFC 和模块可帮助后续恢复清晰边界，但不能直接视为历史 TimeMaster V2 0.1.3 的实现。
 
 ## 运行时进程边界
 
@@ -38,7 +38,7 @@ Main process
 
 ## 数据模型与持久化
 
-应用显式把 Electron `userData` 指向 `%APPDATA%\timemaster-v2\`。主要数据采用 JSON；写入时使用临时文件再替换，并保留恢复副本和无法解析的 `.broken-*` 文件。0.1.3 正式版使用数据模型 v3；0.1.4—0.1.7 Windows x64 正式版使用 v4。0.1.7 安装包未经过 Authenticode 签名；本架构说明不表示该安装包已经上传到 GitHub Release。
+应用显式把 Electron `userData` 指向 `%APPDATA%\timemaster-v2\`。主要数据采用 JSON；写入时使用临时文件再替换，并保留恢复副本和无法解析的 `.broken-*` 文件。0.1.3 正式版使用数据模型 v3；0.1.4—0.1.8 Windows x64 正式版使用 v4。0.1.8 安装包未经过 Authenticode 签名；本架构说明不表示该安装包已经上传到 GitHub Release。
 
 主要实体包括：
 
@@ -59,7 +59,7 @@ Excel 对账以稳定类别 ID 而不是可变显示名称作为汇总键，并�
 
 ## 外部服务
 
-0.1.3—0.1.7 正式版中，只有天气模块有意访问外部服务；费用分类管理和界面改版不增加联网目的地：
+0.1.3—0.1.8 正式版中，只有天气模块有意访问外部服务；费用分类管理和界面改版不增加联网目的地：
 
 - `https://api.open-meteo.com`
 - `https://geocoding-api.open-meteo.com`
@@ -68,9 +68,9 @@ Excel 对账以稳定类别 ID 而不是可变显示名称作为汇总键，并�
 
 ## 产品身份与兼容性
 
-TimeMaster V2 与 LiteCal V1 使用不同 npm 名称、App ID 和用户数据目录：
+时间大师与 LiteCal V1 使用不同 npm 名称、App ID 和用户数据目录；为兼容历史数据，当前版本继续使用原有内部 V2 标识：
 
-| 项目 | LiteCal V1 | TimeMaster V2 |
+| 项目 | LiteCal V1 | 时间大师（内部 V2 标识） |
 |---|---|---|
 | npm 名称 | `litecal` | `timemaster-v2` |
 | App ID | `com.litecal.desktop` | `com.timemaster.v2` |

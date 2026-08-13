@@ -9,7 +9,7 @@ if (process.platform !== 'win32') {
 
 const root = process.cwd()
 const expectedVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
-const executable = join(root, 'release', 'win-unpacked', 'TimeMasterV2.exe')
+const executable = join(root, 'release', 'win-unpacked', 'TimeMaster.exe')
 if (!existsSync(executable)) {
   throw new Error('Packaged app is missing. Run npm run dist:dir first.')
 }
@@ -45,7 +45,7 @@ try {
     throw new Error(`Packaged app version mismatch: expected ${expectedVersion}, received ${result.version}.`)
   }
   if (captureDir) {
-    for (const name of ['calendar.png', 'todos.png', 'matrix.png', 'settings.png', 'expense-overview.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-entry.png', 'widget-ledger.png']) {
+    for (const name of ['calendar.png', 'calendar-compact.png', 'todos.png', 'matrix.png', 'settings.png', 'expense-overview.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-entry.png', 'widget-ledger.png']) {
       const imagePath = join(captureDir, name)
       if (!existsSync(imagePath) || statSync(imagePath).size < 1_000) {
         throw new Error(`Visual smoke capture is missing or empty: ${name}`)

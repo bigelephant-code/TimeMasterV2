@@ -33,7 +33,7 @@ const _sfc_main$a = {
             name: "calendar",
             size: 15
           }),
-          _cache[2] || (_cache[2] = createBaseVNode("span", null, "时间大师 V2", -1))
+          _cache[2] || (_cache[2] = createBaseVNode("span", null, "时间大师", -1))
         ]),
         _cache[3] || (_cache[3] = createBaseVNode("div", { class: "spacer" }, null, -1)),
         createBaseVNode("div", _hoisted_3$8, [
@@ -390,7 +390,7 @@ const _hoisted_9$4 = ["onClick", "onDblclick", "onContextmenu"];
 const _hoisted_10$4 = { class: "cell-head" };
 const _hoisted_11$4 = { class: "num" };
 const _hoisted_12$4 = ["title", "aria-label"];
-const _hoisted_13$4 = { class: "month-todo-count" };
+const _hoisted_13$4 = { class: "month-todo-status" };
 const _hoisted_14$2 = { class: "month-todo-density" };
 const _hoisted_15$2 = ["title"];
 const _hoisted_16$2 = { class: "mix" };
@@ -706,9 +706,21 @@ const _sfc_main$7 = {
                     "aria-label": cellTodos(day).title
                   }, [
                     createBaseVNode("div", _hoisted_13$4, [
-                      createBaseVNode("span", null, [
-                        createBaseVNode("b", null, toDisplayString(cellTodos(day).total), 1),
-                        createTextVNode(" 项待办")
+                      createBaseVNode("span", { class: "pending" }, [
+                        createBaseVNode("i", { "aria-hidden": "true" }),
+                        createBaseVNode("em", null, [
+                          createBaseVNode("span", { class: "status-label-full" }, "未完成"),
+                          createBaseVNode("span", { class: "status-label-short" }, "未")
+                        ]),
+                        createBaseVNode("b", null, toDisplayString(cellTodos(day).open), 1)
+                      ]),
+                      createBaseVNode("span", { class: "finished" }, [
+                        createBaseVNode("i", { "aria-hidden": "true" }),
+                        createBaseVNode("em", null, [
+                          createBaseVNode("span", { class: "status-label-full" }, "已完成"),
+                          createBaseVNode("span", { class: "status-label-short" }, "完")
+                        ]),
+                        createBaseVNode("b", null, toDisplayString(cellTodos(day).done), 1)
                       ])
                     ]),
                     createBaseVNode("div", _hoisted_14$2, [
@@ -2885,7 +2897,7 @@ const _sfc_main$2 = {
           ]),
           _cache[21] || (_cache[21] = createBaseVNode("h3", { style: { "margin-top": "18px" } }, "关于", -1)),
           info.value ? (openBlock(), createElementBlock("div", _hoisted_12, [
-            createTextVNode(" 时间大师 V2 · v" + toDisplayString(info.value.version), 1),
+            createTextVNode(" 时间大师 · v" + toDisplayString(info.value.version), 1),
             _cache[15] || (_cache[15] = createBaseVNode("br", null, null, -1)),
             createTextVNode(" Electron " + toDisplayString(info.value.electron) + " · Chromium " + toDisplayString(info.value.chrome) + " · Node " + toDisplayString(info.value.node), 1),
             _cache[16] || (_cache[16] = createBaseVNode("br", null, null, -1)),

@@ -1,6 +1,6 @@
 # Community code of conduct / 社区行为准则
 
-TimeMaster V2 welcomes respectful, evidence-based participation from people of all backgrounds and experience levels.
+TimeMaster welcomes respectful, evidence-based participation from people of all backgrounds and experience levels.
 
 - Discuss code, behavior, design, and verifiable facts; do not attack or harass people.
 - Do not discriminate, threaten, spam, or publish another person's private information.
@@ -12,7 +12,7 @@ Maintainers may edit, hide, or remove abusive, discriminatory, unsafe, spammy, o
 
 ---
 
-时间大师 V2 欢迎不同背景和经验水平的参与者，以尊重他人、基于证据的方式协作。
+时间大师欢迎不同背景和经验水平的参与者，以尊重他人、基于证据的方式协作。
 
 - 围绕代码、行为、设计和可验证事实讨论，不攻击或骚扰个人。
 - 不歧视、威胁、刷屏或公开他人的隐私信息。

@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-12
 
-Applies to: the TimeMaster V2 0.1.4 formal Windows x64 release and the preserved 0.1.3 release artifact. Version-specific behavior is identified below.
+Applies to: the TimeMaster 0.1.8 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
 
-TimeMaster V2 is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. The 0.1.4 expense-category changes add no new network destination or third-party data sharing.
+TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Expense-category and interface changes add no new network destination or third-party data sharing.
 
 Current released behavior refers to 0.1.4; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.4 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
 
@@ -65,7 +65,7 @@ The widget caches recent weather results locally. While a saved location exists 
 
 ### Windows and browser location
 
-Choosing “use system location” invokes Chromium's `navigator.geolocation` interface. TimeMaster V2 asks for this permission only from the widget window; other application windows are denied geolocation permission by the application's permission handler. The coordinates returned to application code are rounded to two decimal places before local storage and the Open-Meteo forecast request.
+Choosing “use system location” invokes Chromium's `navigator.geolocation` interface. TimeMaster asks for this permission only from the widget window; other application windows are denied geolocation permission by the application's permission handler. The coordinates returned to application code are rounded to two decimal places before local storage and the Open-Meteo forecast request.
 
 Windows, Chromium, hardware, and network providers may participate in determining the device location before the result reaches the application. Their processing is controlled by the relevant Windows privacy settings and provider policies, not by this project. You can use manual city search instead of system location.
 
@@ -83,11 +83,11 @@ Local records generally remain until you edit them in the application or remove 
 - completed focus sessions keep the most recent 2,000 rows;
 - each goal keeps the most recent 100 progress-history rows and 11 completed period summaries.
 
-When a limit is exceeded, the application automatically removes the oldest rows in that collection. These limits mean the local ledger is not an indefinite audit archive; export or separately back up records that must be retained longer. Migration copies named `data.pre-v4-*` are not automatically rotated or deleted. Uninstalling TimeMaster V2 does **not** delete `%APPDATA%\timemaster-v2\`; this is deliberate so an uninstall or upgrade does not silently erase user data.
+When a limit is exceeded, the application automatically removes the oldest rows in that collection. These limits mean the local ledger is not an indefinite audit archive; export or separately back up records that must be retained longer. Migration copies named `data.pre-v4-*` are not automatically rotated or deleted. Uninstalling TimeMaster does **not** delete `%APPDATA%\timemaster-v2\`; this is deliberate so an uninstall or upgrade does not silently erase user data.
 
 To remove all application-held data:
 
-1. Exit TimeMaster V2 from its tray menu so it cannot write the files again.
+1. Exit TimeMaster from its tray menu so it cannot write the files again.
 2. Preserve a copy first if you may need the records later.
 3. Uninstall the application if desired.
 4. In File Explorer, open `%APPDATA%` and delete only the `timemaster-v2` directory.

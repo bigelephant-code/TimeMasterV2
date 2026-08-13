@@ -31,6 +31,10 @@ test('renderer event subscriptions are emitted by the main process', () => {
 test('security and product identity invariants stay explicit', () => {
   assert.equal(pkg.main, './out/main/index.js')
   assert.equal(pkg.build.appId, 'com.timemaster.v2')
+  assert.equal(pkg.build.productName, '时间大师')
+  assert.equal(pkg.build.win.executableName, 'TimeMaster')
+  assert.equal(pkg.build.nsis.shortcutName, '时间大师')
+  assert.equal(pkg.build.artifactName, 'TimeMaster-Setup-${version}.${ext}')
   for (const notice of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'LICENSES/**/*', 'PRIVACY.md']) {
     assert.ok(pkg.build.files.includes(notice), `Packaged app is missing required notice: ${notice}`)
   }
@@ -141,6 +145,10 @@ test('month calendar summarizes todo density without repeating titles', () => {
   const monthCellSource = mainRenderer.slice(mainRenderer.indexOf('cellTodos(day) ?'), mainRenderer.indexOf('cellExp(day) ?'))
   assert.doesNotMatch(monthCellSource, /t\.title/)
   assert.doesNotMatch(monthCellSource, /taskTimeLabel/)
+  assert.match(monthCellSource, /class: "pending"/)
+  assert.match(monthCellSource, /"未完成"/)
+  assert.match(monthCellSource, /class: "finished"/)
+  assert.match(monthCellSource, /"已完成"/)
 })
 
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {

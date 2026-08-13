@@ -1,7 +1,7 @@
 {
   "name": "timemaster-v2",
-  "version": "0.1.7",
-  "description": "时间大师 V2 — 日历、待办、四象限、专注、主任务、费用台账与桌面小组件",
+  "version": "0.1.8",
+  "description": "时间大师 — 日历、待办、四象限、专注、主任务、费用台账与桌面小组件",
   "author": "Ray",
   "license": "MIT",
   "private": true,
@@ -44,8 +44,8 @@
   },
   "build": {
     "appId": "com.timemaster.v2",
-    "productName": "时间大师 V2",
-    "artifactName": "TimeMasterV2-Setup-${version}.${ext}",
+    "productName": "时间大师",
+    "artifactName": "TimeMaster-Setup-${version}.${ext}",
     "electronDist": "node_modules/electron/dist",
     "npmRebuild": false,
     "directories": {
@@ -74,13 +74,13 @@
         }
       ],
       "icon": "build/icon.png",
-      "executableName": "TimeMasterV2"
+      "executableName": "TimeMaster"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "时间大师 V2",
+      "shortcutName": "时间大师",
       "deleteAppDataOnUninstall": false
     }
   },
