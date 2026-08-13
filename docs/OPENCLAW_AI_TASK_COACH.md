@@ -236,6 +236,7 @@ AI 排程只写 `date`、`startTime`、`endTime`、兼容 `time`、提醒去重�
 - 模型可能给出错误步骤、错误时长或看似合理但并非官方的链接。HTTPS 校验只能限制协议和凭据，不能证明事实正确。
 - 今日容量不足时，任务会进入“暂未排入”，不会静默挪到明天。
 - 运行中与重复任务不会被 AI 自动排时间。
+- 排程器只向前推进，不回填前面的空档。若第一项较长放不进上午的空隙，该空隙不会让给后面较短的任务，以免打乱 AI 给出的先后顺序。
 - 当前不支持逐项编辑排程草案、把步骤提升为独立待办、任务依赖或跨天自动规划。
 - 当前 Responses 调用是一次性非流式请求；没有实时 token 进度。
 
@@ -243,7 +244,7 @@ AI 排程只写 `date`、`startTime`、`endTime`、兼容 `time`、提醒去重�
 
 | 现象 | 常见原因 | 处理 |
 | --- | --- | --- |
-| `401` / `403` | Token 错误或误用了 Hook token | 核对专用 Profile，并轮换 AI Gateway Token；不要打印 Token |
+| `401` / `403` | Token 错误、误用了 Hook token，或上游模型供应商拒绝（余额不足、Key 失效） | 先看错误信息里 OpenClaw 透出的上游原因；属于 Gateway 认证才核对专用 Profile 并轮换 AI Gateway Token，不要打印 Token |
 | `404` / `405` | Responses 未启用、路径或端口错误 | 核对精确 `/v1/responses` 与专用端口 |
 | 找不到 Agent | Agent ID 或 Profile 错误 | 运行 `agents list --bindings` |
 | 超时/拒绝连接 | Gateway 未运行或端口错误 | 检查 `gateway status --deep` |

@@ -242,6 +242,8 @@ const DAY_PLAN_PARAMETERS = {
   }
 };
 
+const FIELD_LEGEND = "字段刻度：priority 为 0=无、1=低、2=中、3=高，数值越大越重要；quadrant 为 0=未分类、1=重要且紧急、2=重要不紧急、3=紧急不重要、4=不重要不紧急，数值越小越应优先。";
+
 function baseRequest(toolName, parameters, input, instructions, agentId) {
   return {
     model: `openclaw/${agentId}`,
@@ -294,7 +296,7 @@ function buildTaskPlanRequest(todo, context = {}, configInput = {}) {
     TASK_PLAN_TOOL_NAME,
     TASK_PLAN_PARAMETERS,
     JSON.stringify(payload),
-    "你是时间大师的任务教练。请把任务拆成低阻力、可执行的步骤；需要查证时只给官方 HTTPS 入口，不能编造。问题无法确定时写入 questions。只调用指定函数返回中文结构化方案。",
+    `你是时间大师的任务教练。请把任务拆成低阻力、可执行的步骤；需要查证时只给官方 HTTPS 入口，不能编造。问题无法确定时写入 questions。只调用指定函数返回中文结构化方案。${FIELD_LEGEND}`,
     config.agentId
   );
 }
@@ -309,7 +311,7 @@ function buildDayPlanRequest(todos, context = {}, configInput = {}) {
     DAY_PLAN_TOOL_NAME,
     DAY_PLAN_PARAMETERS,
     JSON.stringify(payload),
-    "你是时间大师的任务排序教练。只判断任务顺序和现实预计时长，不生成具体钟点；本地调度器会避开固定日程、午休与缓冲。优先考虑四象限、依赖和用户精力。只调用指定函数返回结果。",
+    `你是时间大师的任务排序教练。只判断任务顺序和现实预计时长，不生成具体钟点；本地调度器会避开固定日程、午休与缓冲。优先考虑四象限、依赖和用户精力。只调用指定函数返回结果。${FIELD_LEGEND}`,
     config.agentId
   );
 }
@@ -366,6 +368,14 @@ async function readResponseBodyLimited(response, maxBytes = AI_TASK_COACH_MAX_RE
   return text;
 }
 
+function upstreamErrorMessage(parsed) {
+  const error = parsed && typeof parsed === "object" ? parsed.error : null;
+  if (!error) return "";
+  if (typeof error === "string") return cleanText(error, 300);
+  if (typeof error !== "object" || Array.isArray(error)) return "";
+  return cleanText(error.message || error.code || "", 300);
+}
+
 async function requestOpenClawPlan(request, dependencies = {}) {
   const endpoint = normalizeLoopbackResponsesEndpoint(request?.endpoint);
   if (!endpoint) throw new Error("AI Gateway 必须是本机 HTTP /v1/responses 地址。");
@@ -388,13 +398,16 @@ async function requestOpenClawPlan(request, dependencies = {}) {
       signal: controller.signal
     });
     const text = await readResponseBodyLimited(response);
-    if (!response.ok) throw new Error(`OpenClaw 请求失败（HTTP ${response.status}）。`);
-    let parsed;
+    let parsed = null;
     try {
       parsed = JSON.parse(text);
     } catch {
-      throw new Error("OpenClaw 响应不是有效 JSON。");
+      // A gateway or upstream failure body may not be JSON; the status branch below still reports it.
     }
+    const upstream = upstreamErrorMessage(parsed);
+    if (!response.ok) throw new Error(`OpenClaw 请求失败（HTTP ${response.status}）${upstream ? `：${upstream}` : ""}。`);
+    if (!parsed) throw new Error("OpenClaw 响应不是有效 JSON。");
+    if (upstream || parsed.status === "failed") throw new Error(`OpenClaw 生成方案失败${upstream ? `：${upstream}` : ""}。`);
     return { responseId: cleanText(parsed.id, 200), arguments: extractFunctionCall(parsed, request.expectedTool) };
   } catch (error) {
     if (error?.name === "AbortError") throw new Error("OpenClaw 生成方案超时（90 秒）。");

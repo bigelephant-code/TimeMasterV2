@@ -142,6 +142,17 @@ test('task and day requests pin a non-streaming client function and exclude note
   ])
 })
 
+test('both requests explain the priority and quadrant scales sent as bare numbers', () => {
+  // priority 与 quadrant 只作为裸数字发送，方向相反；缺少刻度说明时模型会把 priority 1 当成最高。
+  for (const request of [buildTaskPlanRequest(baseTodo(), {}), buildDayPlanRequest([baseTodo()], {})]) {
+    assert.match(request.instructions, /priority[^；]*3=高/)
+    assert.match(request.instructions, /数值越大越重要/)
+    assert.match(request.instructions, /1=重要且紧急/)
+    assert.match(request.instructions, /4=不重要不紧急/)
+    assert.match(request.instructions, /数值越小越应优先/)
+  }
+})
+
 test('function extraction accepts exactly one whitelisted matching function call', () => {
   const good = {
     id: 'resp-1',
@@ -251,6 +262,48 @@ test('OpenClaw delivery rejects remote endpoints, oversized bodies and hides the
   }, {
     fetch: async () => { throw new Error('failure never-leak-me') }
   }), (error) => !String(error.message).includes('never-leak-me') && String(error.message).includes('[已隐藏]'))
+})
+
+test('upstream gateway failures report the real reason instead of a bare status code', async () => {
+  const respondWith = (status, body) => ({
+    fetch: async () => ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { get: () => null },
+      text: async () => body
+    })
+  })
+  const plan = {
+    endpoint: DEFAULT_AI_TASK_COACH_ENDPOINT,
+    body: {},
+    expectedTool: TASK_PLAN_TOOL_NAME
+  }
+
+  await assert.rejects(
+    () => requestOpenClawPlan(plan, respondWith(401, JSON.stringify({
+      error: { code: 'authentication_error', message: '403 预扣费额度失败, 用户剩余额度不足' }
+    }))),
+    (error) => /HTTP 401/.test(error.message) && /预扣费额度失败/.test(error.message)
+  )
+
+  await assert.rejects(
+    () => requestOpenClawPlan(plan, respondWith(200, JSON.stringify({
+      id: 'resp-fail', status: 'failed', output: [], error: { message: '上游模型超时' }
+    }))),
+    (error) => /生成方案失败/.test(error.message) && /上游模型超时/.test(error.message)
+  )
+
+  await assert.rejects(
+    () => requestOpenClawPlan(plan, respondWith(502, '<html>bad gateway</html>')),
+    (error) => /HTTP 502/.test(error.message)
+  )
+
+  await assert.rejects(
+    () => requestOpenClawPlan({ ...plan, token: 'never-leak-me' }, respondWith(401, JSON.stringify({
+      error: { message: 'token never-leak-me rejected' }
+    }))),
+    (error) => !error.message.includes('never-leak-me') && error.message.includes('[已隐藏]')
+  )
 })
 
 test('deterministic scheduler keeps fixed tasks, rounds today up, avoids lunch and follows AI then quadrant order', () => {
