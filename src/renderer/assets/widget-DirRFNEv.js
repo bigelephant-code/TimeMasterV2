@@ -1265,6 +1265,23 @@ const _sfc_main = {
       ledgerAmount.value = "";
       ledgerNote.value = "";
     }
+    function onLedgerBlankClick(event) {
+      if (!ledgerFor.value) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest(".wx-led-cat, .wx-led-day, .wx-led-amount, .wx-led-noteinput, .wx-led-ok")) return;
+      closeLedger();
+    }
+    function onLedgerDocumentKeydown(event) {
+      if (!ledgerFor.value || event.key !== "Escape") return;
+      event.preventDefault();
+      closeLedger();
+    }
+    onMounted(() => {
+      document.addEventListener("keydown", onLedgerDocumentKeydown, true);
+    });
+    onUnmounted(() => {
+      document.removeEventListener("keydown", onLedgerDocumentKeydown, true);
+    });
     watch(
       () => state.goals,
       () => {
@@ -1339,7 +1356,8 @@ const _sfc_main = {
     });
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", {
-        class: normalizeClass(["wx", { locked: locked.value }])
+        class: normalizeClass(["wx", { locked: locked.value }]),
+        onClick: onLedgerBlankClick
       }, [
         createBaseVNode("div", _hoisted_1, [
           createBaseVNode("button", {

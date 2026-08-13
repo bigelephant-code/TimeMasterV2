@@ -123,6 +123,16 @@ test('expense category controls are exposed beside the actual ledger buttons', (
   assert.match(mainRenderer, /从记账按钮中删除，历史账目仍会保留/)
 })
 
+test('widget expense quick entry can be cancelled without writing a record', () => {
+  assert.match(widgetRenderer, /function onLedgerBlankClick\(event\)/)
+  assert.match(widgetRenderer, /onClick: onLedgerBlankClick/)
+  assert.match(widgetRenderer, /document\.addEventListener\("keydown", onLedgerDocumentKeydown, true\)/)
+  const closeSource = widgetRenderer.slice(widgetRenderer.indexOf('function closeLedger()'), widgetRenderer.indexOf('function onLedgerBlankClick'))
+  assert.match(closeSource, /ledgerFor\.value = null/)
+  assert.match(closeSource, /ledgerAmount\.value = ""/)
+  assert.match(closeSource, /ledgerNote\.value = ""/)
+})
+
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {
   assert.match(mainRenderer, /function calendarExpenseSummary\(entries = \[\]\)/)
   assert.match(mainRenderer, /const key = JSON\.stringify\(\[goalId, categoryId\]\)/)

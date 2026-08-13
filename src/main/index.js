@@ -2784,7 +2784,7 @@ async function runPackagedSmokeTest(main, widget) {
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       const tomorrowForTasks = localYmd$1(tomorrowDate);
       for (const todo of [
-        { listId: smokeList.id, title: "整理 0.1.5 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
+        { listId: smokeList.id, title: "整理 0.1.6 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
         { listId: smokeList.id, title: "完善开源项目文档", date: todayForTasks, startTime: "19:15", endTime: "20:45", priority: 2, quadrant: 2 },
         { listId: smokeList.id, title: "回顾用户反馈", date: tomorrowForTasks, startTime: "09:30", endTime: "10:00", priority: 2, quadrant: 3 },
         { listId: personalList.id, title: "阅读技术文章", date: todayForTasks, startTime: "22:00", endTime: "23:00", priority: 1, quadrant: 4 }
@@ -2860,6 +2860,16 @@ async function runPackagedSmokeTest(main, widget) {
       await delay(250);
       const audit = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "expense-audit.png"), audit.toPNG());
+      await widget.webContents.executeJavaScript(`document.querySelector('.wx-led-cat')?.click()`);
+      await delay(100);
+      const widgetLedgerOpened = await widget.webContents.executeJavaScript(`Boolean(document.querySelector('.wx-led-entry'))`);
+      if (!widgetLedgerOpened) throw new Error("桌面小组件费用快捷输入未打开。");
+      const widgetEntry = await widget.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "widget-entry.png"), widgetEntry.toPNG());
+      await widget.webContents.executeJavaScript(`document.querySelector('.wx-led-entry')?.closest('.wx-goal')?.querySelector('.wx-goal-top')?.click()`);
+      await delay(100);
+      const widgetLedgerClosed = await widget.webContents.executeJavaScript(`!document.querySelector('.wx-led-entry')`);
+      if (!widgetLedgerClosed) throw new Error("桌面小组件费用快捷输入未能通过点击空白处取消。");
       const widgetLedger = await widget.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "widget-ledger.png"), widgetLedger.toPNG());
     }

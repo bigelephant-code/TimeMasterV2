@@ -18,7 +18,7 @@ It is designed for people who want one account-free Windows workspace to answer 
 
 [![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.5` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
+> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.6` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
 
 ## Features
 
@@ -32,6 +32,11 @@ It is designed for people who want one account-free Windows workspace to answer 
 | Expense ledger | Date-based entries, corrections, history, and Excel reconciliation export |
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
+
+### 0.1.6 formal release (2026-08-13)
+
+- Fixes desktop-widget expense quick entry so it can be cancelled by clicking outside the input controls.
+- `Escape` also dismisses it; cancellation writes no entry and clears the unsubmitted draft.
 
 ### 0.1.5 formal release (2026-08-13)
 
@@ -67,7 +72,7 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.5; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management and the 0.1.5 visual refresh add no network destination or third-party data sharing.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.6; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management and the visual refresh add no network destination or third-party data sharing.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.
@@ -76,7 +81,7 @@ Local-first does not mean invulnerable: TimeMaster V2 does not encrypt its appli
 
 ## Installer integrity
 
-The formal `0.1.5` artifact is the Windows x64 NSIS installer `TimeMasterV2-Setup-0.1.5.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
+The formal `0.1.6` artifact is the Windows x64 NSIS installer `TimeMasterV2-Setup-0.1.6.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
 
 The original 0.1.3 artifact remains preserved as the recovery source and immutable reference. Its filename and SHA-256 are recorded below.
 
@@ -134,7 +139,7 @@ The smoke test uses explicitly isolated temporary `userData` and session directo
 ## Source and version boundaries
 
 ```text
-src/                       editable, buildable source-equivalent input for 0.1.5
+src/                       editable, buildable source-equivalent input for 0.1.6
 runtime/                   immutable golden reference extracted from the original 0.1.3 app.asar
 legacy/litecal-0.1.0/      historical modular LiteCal 0.1.0 source, for migration reference only
 tests/                     IPC and security contract tests
