@@ -389,12 +389,9 @@ const _hoisted_8$5 = { class: "month-grid" };
 const _hoisted_9$4 = ["onClick", "onDblclick", "onContextmenu"];
 const _hoisted_10$4 = { class: "cell-head" };
 const _hoisted_11$4 = { class: "num" };
-const _hoisted_12$4 = { class: "chips" };
-const _hoisted_13$4 = ["title"];
-const _hoisted_14$2 = {
-  key: 0,
-  class: "chip more"
-};
+const _hoisted_12$4 = ["title", "aria-label"];
+const _hoisted_13$4 = { class: "month-todo-count" };
+const _hoisted_14$2 = { class: "month-todo-density" };
 const _hoisted_15$2 = ["title"];
 const _hoisted_16$2 = { class: "mix" };
 const _hoisted_17$2 = {
@@ -591,7 +588,19 @@ const _sfc_main$7 = {
         pct: row.amount / nonCogs * 100
       })).filter((row) => row.pct > 0);
     }
-    const chipLimit = (day) => cellExp(day) ? 2 : 3;
+    function cellTodos(day) {
+      const items = todosOn(day);
+      if (!items.length) return null;
+      const done = items.filter((todo) => todo.done).length;
+      const open = items.length - done;
+      return {
+        total: items.length,
+        done,
+        open,
+        density: Math.min(6, items.length),
+        title: `${items.length} 项待办 · ${open} 项未完成${done ? ` · ${done} 项已完成` : ""}；点击后在右侧查看详情`
+      };
+    }
     const selectedExp = computed(() => calendarExpenseSummary(expensesOn(state.selected)));
     const calCogsName = computed(() => {
       const names = [...new Set(ledgerGoals.value.map((ledger) => cogsLabel(ledger)))];
@@ -687,16 +696,30 @@ const _sfc_main$7 = {
                       class: normalizeClass(["sub", unref(lunarInfo)(day).tone])
                     }, toDisplayString(unref(lunarInfo)(day).label), 3)
                   ]),
-                  createBaseVNode("div", _hoisted_12$4, [
-                    (openBlock(true), createElementBlock(Fragment, null, renderList(unref(todosOn)(day).slice(0, chipLimit(day)), (t) => {
-                      return openBlock(), createElementBlock("div", {
-                        key: t.id,
-                        class: normalizeClass(["chip", { done: t.done }]),
-                        title: t.title
-                      }, toDisplayString(unref(taskTimeLabel)(t) ? unref(taskTimeLabel)(t) + " " : "") + toDisplayString(t.title), 11, _hoisted_13$4);
-                    }), 128)),
-                    unref(todosOn)(day).length > chipLimit(day) ? (openBlock(), createElementBlock("div", _hoisted_14$2, " 还有 " + toDisplayString(unref(todosOn)(day).length - chipLimit(day)) + " 条 ", 1)) : createCommentVNode("", true)
-                  ]),
+                  cellTodos(day) ? (openBlock(), createElementBlock("div", {
+                    key: 2,
+                    class: normalizeClass(["month-todo-summary", {
+                      busy: cellTodos(day).total >= 5,
+                      complete: !cellTodos(day).open
+                    }]),
+                    title: cellTodos(day).title,
+                    "aria-label": cellTodos(day).title
+                  }, [
+                    createBaseVNode("div", _hoisted_13$4, [
+                      createBaseVNode("span", null, [
+                        createBaseVNode("b", null, toDisplayString(cellTodos(day).total), 1),
+                        createTextVNode(" 项待办")
+                      ])
+                    ]),
+                    createBaseVNode("div", _hoisted_14$2, [
+                      (openBlock(), createElementBlock(Fragment, null, renderList(6, (index) => {
+                        return createBaseVNode("i", {
+                          key: index,
+                          class: normalizeClass({ on: index <= cellTodos(day).density })
+                        }, null, 2);
+                      }), 64))
+                    ])
+                  ], 10, _hoisted_12$4)) : createCommentVNode("", true),
                   cellExp(day) ? (openBlock(), createElementBlock("div", {
                     key: 1,
                     class: "cell-exp",

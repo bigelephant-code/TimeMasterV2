@@ -133,6 +133,16 @@ test('widget expense quick entry can be cancelled without writing a record', () 
   assert.match(closeSource, /ledgerNote\.value = ""/)
 })
 
+test('month calendar summarizes todo density without repeating titles', () => {
+  assert.match(mainRenderer, /function cellTodos\(day\)/)
+  assert.match(mainRenderer, /项待办 · \$\{open\} 项未完成/)
+  assert.match(mainRenderer, /点击后在右侧查看详情/)
+  assert.match(mainRenderer, /class: "month-todo-density"/)
+  const monthCellSource = mainRenderer.slice(mainRenderer.indexOf('cellTodos(day) ?'), mainRenderer.indexOf('cellExp(day) ?'))
+  assert.doesNotMatch(monthCellSource, /t\.title/)
+  assert.doesNotMatch(monthCellSource, /taskTimeLabel/)
+})
+
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {
   assert.match(mainRenderer, /function calendarExpenseSummary\(entries = \[\]\)/)
   assert.match(mainRenderer, /const key = JSON\.stringify\(\[goalId, categoryId\]\)/)

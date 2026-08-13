@@ -1,6 +1,6 @@
 # Current source-equivalent reconstruction
 
-This directory is the editable build input for TimeMaster V2 0.1.6 development
+This directory is the editable build input for TimeMaster V2 0.1.7 development
 line. `npm run build` uses `electron-vite` to compile it into `out/`, and release
 packaging consumes only `out/`.
 

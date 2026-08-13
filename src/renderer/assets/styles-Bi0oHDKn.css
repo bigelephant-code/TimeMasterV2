@@ -507,35 +507,53 @@ select:focus-visible,
   color: var(--danger);
 }
 
-.chips {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  margin-top: 1px;
-}
-.chip {
-  font-size: 10px;
-  line-height: 1.5;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--bg-soft);
+.month-todo-summary {
+  display: grid;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-soft));
   color: var(--text-dim);
+}
+.month-todo-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-left: 2px solid var(--accent);
 }
-.chip.done {
-  opacity: 0.45;
-  text-decoration: line-through;
+.month-todo-count b {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
 }
-.chip.more {
-  border-left-color: transparent;
-  color: var(--text-faint);
-  background: none;
-  padding-left: 7px;
+.month-todo-density {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(3px, 1fr));
+  gap: 2px;
 }
+.month-todo-density i {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-soft);
+}
+.month-todo-density i.on {
+  background: color-mix(in srgb, var(--accent) 72%, #72d6ff);
+}
+.month-todo-summary.busy {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, var(--bg-soft)), color-mix(in srgb, var(--accent) 5%, var(--bg-soft)));
+}
+.month-todo-summary.busy .month-todo-density i.on {
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.month-todo-summary.complete { opacity: 0.58; }
 
 /* 周视图 / 日视图 */
 .timeline {
@@ -1212,7 +1230,7 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), 0 10px 24px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .cell.today .num { box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 28%, transparent); }
-.chip { border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft)); border-radius: 7px; background: color-mix(in srgb, var(--accent-soft) 70%, var(--bg-soft)); }
+.month-todo-summary { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent); }
 .day-panel { width: 286px; border-left-color: var(--border-soft); background: linear-gradient(180deg, var(--bg-elev), color-mix(in srgb, var(--bg) 86%, var(--bg-elev))); }
 .day-panel .head { padding: 14px 14px 12px; border-bottom: 1px solid var(--border-soft); background: radial-gradient(circle at 20% 0%, var(--panel-glow), transparent 72%); }
 .day-panel .big { font-size: 30px; letter-spacing: -1px; }

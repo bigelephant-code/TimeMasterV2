@@ -2784,10 +2784,15 @@ async function runPackagedSmokeTest(main, widget) {
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       const tomorrowForTasks = localYmd$1(tomorrowDate);
       for (const todo of [
-        { listId: smokeList.id, title: "整理 0.1.6 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
+        { listId: smokeList.id, title: "整理 0.1.7 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
         { listId: smokeList.id, title: "完善开源项目文档", date: todayForTasks, startTime: "19:15", endTime: "20:45", priority: 2, quadrant: 2 },
         { listId: smokeList.id, title: "回顾用户反馈", date: tomorrowForTasks, startTime: "09:30", endTime: "10:00", priority: 2, quadrant: 3 },
-        { listId: personalList.id, title: "阅读技术文章", date: todayForTasks, startTime: "22:00", endTime: "23:00", priority: 1, quadrant: 4 }
+        { listId: personalList.id, title: "阅读技术文章", date: todayForTasks, startTime: "22:00", endTime: "23:00", priority: 1, quadrant: 4 },
+        { listId: smokeList.id, title: "整理版本截图", date: todayForTasks, startTime: "10:00", endTime: "10:30", priority: 2, quadrant: 2 },
+        { listId: smokeList.id, title: "核对安装包哈希", date: todayForTasks, startTime: "11:00", endTime: "11:20", priority: 3, quadrant: 1 },
+        { listId: personalList.id, title: "处理待办归档", date: todayForTasks, startTime: "14:00", endTime: "14:30", priority: 1, quadrant: 3 },
+        { listId: smokeList.id, title: "准备发布说明", date: todayForTasks, startTime: "15:00", endTime: "15:40", priority: 2, quadrant: 2 },
+        { listId: personalList.id, title: "复盘本周安排", date: todayForTasks, startTime: "21:00", endTime: "21:30", priority: 1, quadrant: 4 }
       ]) repo.createTodo(todo);
       const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
       const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
