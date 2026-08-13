@@ -177,6 +177,31 @@ openclaw agent --agent timemaster-reminders --message "只回复 REMINDER_AGENT_
 - 只有连接尚未建立的错误，以及 409、429、502、503，会在有效窗口内有限重试。408、其他未明确归类的 5xx、响应丢失或超时后无法确认服务端是否已受理时，统一视为结果不确定，不盲目重发，避免生成重复 QQ 消息。
 - QQ 可能因 Gateway 未运行、机器人账号不匹配、用户最近未互动、主动消息规则或限流而拒绝投递。只要时间大师仍在运行且提醒仍在有效窗口，本地 Windows 路径会独立尝试，但仍受上述 Windows 系统设置约束。
 
+## 5.1 投递模式：agent 与 direct
+
+`remoteReminder.mode` 决定提醒怎么送到 QQ，默认 `agent`。
+
+| | `agent`（默认） | `direct`（直投桥） |
+| --- | --- | --- |
+| 路径 | `POST /hooks/agent` → 提醒代理 → 模型复述 → QQ | Gateway WebSocket `send` 方法 → QQ |
+| 提醒原文 | 由模型复述，无法从架构上保证逐字不变 | 逐字原样送出 |
+| 凭据 | OpenClaw Hook Token | **该 Gateway 的 operator Token** |
+| `accepted` 的含义 | 代理已受理这个任务 | 通道已接受这条消息 |
+| 模型不可用时 | 代理运行失败，提醒静默丢失 | 不受影响，不经过模型 |
+
+选择 `direct` 的理由是确定性：`agent` 路径依赖模型生成一次回复，模型超时、额度不足或输出被截断都会让提醒消失，而 Hook 早已返回 200，时间大师只会记录“已受理”。
+
+代价必须明确：`send` 需要 `operator.write`，也就是该 Gateway 的 operator 凭据，权限**高于** Hook Token。持有它的主体等同于该 Gateway 的操作者。因此：
+
+- 只在仅监听 loopback 的 Gateway 上使用直投；
+- 该 Token 与 AI 教练的 Gateway Token 仍必须是不同凭据；
+- 时间大师侧同样经 `safeStorage` 加密保存，renderer 无法读回明文；
+- 直投只会调用 `send` 一个方法，握手时只申请 `operator.write`。
+
+切换模式会改变 `routeKey`，队列中尚未投递的旧事件因此作废，不会用新模式重发旧提醒。
+
+当前状态：主进程与传输层已实现并测试，设置界面尚未提供切换开关。要启用直投，需要在 `settings.json` 中把 `remoteReminder.mode` 改为 `"direct"`，并在设置页的 Token 输入框改填该 Gateway 的 operator Token 后保存。
+
 ## 6. 本地文件
 
 相关文件位于 `%APPDATA%\timemaster-v2\`：

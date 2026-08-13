@@ -41,10 +41,17 @@ test('remote reminder config defaults off and accepts only the exact loopback ho
     endpoint: 'http://127.0.0.1:18789/hooks/agent',
     token: '',
     channel: 'qqbot',
+    mode: 'agent',
     target: null,
     accountId: null,
     includeNote: false
   })
+
+  // 未知或缺失的投递模式必须回落到既有的 agent 行为，绝不能默认启用直投。
+  assert.equal(normalizeRemoteReminderConfig({ mode: 'direct' }).mode, 'direct')
+  for (const mode of [undefined, null, '', 'DIRECT', 'agent', 'anything']) {
+    assert.equal(normalizeRemoteReminderConfig({ mode }).mode, mode === 'direct' ? 'direct' : 'agent', String(mode))
+  }
 
   const accepted = [
     'http://127.0.0.1:18789/hooks/agent',

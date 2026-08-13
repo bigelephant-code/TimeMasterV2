@@ -15,6 +15,7 @@ const {
   normalizeQqbotTarget,
   createReminderOccurrenceKey,
   createReminderEventId,
+  buildReminderText,
   buildOpenClawPayload,
   deliverOpenClawReminder,
   normalizeRemoteReminderOutbox,
@@ -24,6 +25,7 @@ const {
   pruneRemoteReminderOutbox,
   dueRemoteReminders
 } = require("./remote-reminders.js");
+const { deliverDirectReminder } = require("./gateway-direct-send.js");
 const {
   DEFAULT_AI_TASK_COACH_ENDPOINT,
   TASK_PLAN_TOOL_NAME,
@@ -238,6 +240,7 @@ function defaultSettings() {
     remoteReminder: {
       enabled: false,
       endpoint: DEFAULT_REMOTE_REMINDER_ENDPOINT,
+      mode: "agent",
       target: "",
       accountId: "",
       includeNote: false
@@ -400,6 +403,7 @@ function initStore() {
   settings.remoteReminder = {
     enabled: normalizedRemoteReminder.enabled,
     endpoint: normalizedRemoteReminder.endpoint || DEFAULT_REMOTE_REMINDER_ENDPOINT,
+    mode: normalizedRemoteReminder.mode,
     target: normalizedRemoteReminder.target || "",
     accountId: normalizedRemoteReminder.accountId || "",
     includeNote: normalizedRemoteReminder.includeNote
@@ -548,6 +552,7 @@ function publicRemoteReminderConfig() {
     config: {
       enabled: normalized.enabled,
       gatewayUrl: normalized.endpoint || DEFAULT_REMOTE_REMINDER_ENDPOINT,
+      mode: normalized.mode,
       target: normalized.target || "",
       accountId: normalized.accountId || "",
       includeNote: normalized.includeNote
@@ -562,6 +567,7 @@ function saveRemoteReminderConfig(input = {}) {
   const normalized = normalizeRemoteReminderConfig({
     enabled: input.enabled,
     endpoint: input.gatewayUrl ?? input.endpoint,
+    mode: input.mode ?? settings.remoteReminder?.mode,
     target: input.target,
     accountId: input.accountId,
     includeNote: input.includeNote
@@ -580,11 +586,14 @@ function saveRemoteReminderConfig(input = {}) {
   }
   const preparedSecrets = rawToken ? prepareRemoteReminderSecrets(rawToken) : null;
   if (input.enabled === true && !effectiveRemoteToken) {
-    throw new Error("请填写 OpenClaw Hook Token 后再启用远程提醒。");
+    throw new Error(normalized.mode === "direct"
+      ? "直投模式需要填写该 Gateway 的 operator Token 后才能启用远程提醒。"
+      : "请填写 OpenClaw Hook Token 后再启用远程提醒。");
   }
   const nextRemoteReminder = {
     enabled: input.enabled === true,
     endpoint: normalized.endpoint,
+    mode: normalized.mode,
     target: normalized.target || "",
     accountId: normalized.accountId || "",
     includeNote: normalized.includeNote
@@ -629,6 +638,26 @@ function saveRemoteReminderConfig(input = {}) {
 }
 function ensureMainWindowSender(event) {
   if (windowOf(event) !== getMainWindow()) throw new Error("该操作只能从时间大师主窗口发起。");
+}
+// direct 模式把提醒原文交给 Gateway 的 send 方法，不经过 Agent 与模型复述；
+// agent 模式保留原有 /hooks/agent 行为。两者返回同一套 classification。
+function deliverRemoteReminder(config, todo, occurrenceKey, eventId) {
+  if (config.mode === "direct") {
+    return deliverDirectReminder({
+      endpoint: config.endpoint,
+      token: config.token,
+      target: config.target,
+      accountId: config.accountId,
+      message: buildReminderText(todo, { includeNote: config.includeNote }),
+      eventId
+    }, { clientVersion: electron.app.getVersion() });
+  }
+  return deliverOpenClawReminder({
+    endpoint: config.endpoint,
+    token: config.token,
+    eventId,
+    payload: buildOpenClawPayload(todo, config, { occurrenceKey, eventId })
+  });
 }
 function remoteReminderConfigWithToken() {
   const config = normalizeRemoteReminderConfig({ ...settings.remoteReminder, token: readRemoteReminderToken() });
@@ -684,14 +713,12 @@ async function sendRemoteReminderTest() {
   };
   const occurrence = createReminderOccurrenceKey(todo);
   const eventId = createReminderEventId(todo, occurrence);
-  const result = await deliverOpenClawReminder({
-    endpoint: config.endpoint,
-    token: config.token,
-    eventId,
-    payload: buildOpenClawPayload(todo, config, { occurrenceKey: occurrence, eventId })
-  });
+  const result = await deliverRemoteReminder(config, todo, occurrence, eventId);
   if (result.classification === "accepted") {
-    return { ok: true, message: "OpenClaw 已受理测试提醒；请到 QQ 确认是否最终收到。", runId: result.runId };
+    const message = config.mode === "direct"
+      ? "QQ 通道已接受测试提醒原文；请到 QQ 确认是否最终收到。"
+      : "OpenClaw 已受理测试提醒；请到 QQ 确认是否最终收到。";
+    return { ok: true, message, runId: result.runId };
   }
   const detail = result.status ? `HTTP ${result.status}` : result.reason || "网络错误";
   throw new Error(`OpenClaw 未受理测试提醒：${detail}`);
@@ -3413,7 +3440,8 @@ function remoteReminderRouteKey(config) {
   return node_crypto.createHash("sha256").update(JSON.stringify([
     config.channel,
     config.target,
-    config.accountId || ""
+    config.accountId || "",
+    config.mode
   ])).digest("hex").slice(0, 24);
 }
 function queueRemoteReminder(todo, dueAt, fireAt, now = Date.now()) {
@@ -3472,12 +3500,7 @@ async function performRemoteReminderDrain() {
     }
     remoteReminderOutbox = markRemoteReminderAttempting(remoteReminderOutbox, item.eventId, now);
     writeRemoteReminderOutbox();
-    const result = await deliverOpenClawReminder({
-      endpoint: config.endpoint,
-      token: config.token,
-      eventId: item.eventId,
-      payload: buildOpenClawPayload(todo, config, { occurrenceKey: item.occurrenceKey, eventId: item.eventId })
-    });
+    const result = await deliverRemoteReminder(config, todo, item.occurrenceKey, item.eventId);
     const liveItem = remoteReminderOutbox.items.find((entry) => entry.eventId === item.eventId);
     if (liveItem?.status === "attempting") {
       remoteReminderOutbox = markRemoteReminderResult(remoteReminderOutbox, item.eventId, result, Date.now());

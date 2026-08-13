@@ -78,6 +78,11 @@ function normalizeToken(value) {
   return token;
 }
 
+// "agent" 走 /hooks/agent，由模型复述提醒原文；"direct" 走 Gateway 的 send 方法直投。
+function normalizeRemoteReminderMode(value) {
+  return value === "direct" ? "direct" : "agent";
+}
+
 function normalizeRemoteReminderConfig(input) {
   const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const endpoint = normalizeLoopbackEndpoint(source.endpoint);
@@ -89,6 +94,7 @@ function normalizeRemoteReminderConfig(input) {
     endpoint,
     token: normalizeToken(source.token),
     channel: "qqbot",
+    mode: normalizeRemoteReminderMode(source.mode),
     target,
     accountId,
     includeNote: source.includeNote === true
@@ -479,6 +485,7 @@ module.exports = {
   DEFAULT_TERMINAL_RETENTION_MS,
   normalizeLoopbackEndpoint,
   normalizeQqbotTarget,
+  normalizeRemoteReminderMode,
   normalizeRemoteReminderConfig,
   createReminderOccurrenceKey,
   createReminderEventId,
