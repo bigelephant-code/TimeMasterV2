@@ -1699,7 +1699,7 @@ const _sfc_main$4 = {
       if (!goal.value || !catForm.value || catForm.value.busy) return;
       const usage = categoryUsage(category.id);
       const detail = usage.count ? `\n\n已有 ${usage.count} 笔、合计 ${formatGoalNumber(usage.amount)}${unit.value}。历史记录和导出都会继续保留。` : "\n\n这个类别还没有记账记录。";
-      const ok = await confirmDialog(`停用“${category.name}”？${detail}\n\n停用后不会出现在新增记账按钮中，可以随时恢复。`, { okText: "停用" });
+      const ok = await confirmDialog(`删除“${category.name}”分类按钮？${detail}\n\n删除后不会出现在记账分类按钮中，需要时可以在这里恢复。`, { okText: "删除" });
       if (!ok || !catForm.value) return;
       catForm.value.busy = true;
       catForm.value.error = "";
@@ -1872,7 +1872,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               class: "ghost exp-cat-btn",
               title: "新增、改名、停用或恢复记账类别",
               onClick: openCatForm
-            }, " 管理类别 "),
+            }, " 费用分类 "),
             createBaseVNode("div", _hoisted_6$2, [
               createBaseVNode("select", {
                 class: "exp-preset",
@@ -2098,7 +2098,14 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               createBaseVNode("div", _hoisted_47, [
                 createBaseVNode("div", { class: "exp-add-head" }, [
                   createBaseVNode("span", { class: "exp-add-title" }, "记一笔"),
-                  createBaseVNode("span", { class: "exp-add-date" }, toDisplayString(unref(state).selected), 1)
+                  createBaseVNode("span", { class: "exp-add-date" }, toDisplayString(unref(state).selected), 1),
+                  createBaseVNode("button", {
+                    type: "button",
+                    class: "ghost exp-cat-btn exp-cat-btn-inline",
+                    title: "新增、删除或修改下方费用分类按钮",
+                    "aria-label": "编辑费用分类按钮",
+                    onClick: openCatForm
+                  }, "编辑费用分类")
                 ]),
                 createBaseVNode("div", _hoisted_48, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(activeCats.value, (c) => {
@@ -2205,12 +2212,12 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
               tabindex: "-1",
               onKeydown: onCatDialogKeydown
             }, [
-              _cache[22] || (_cache[22] = createBaseVNode("div", { id: "expense-category-dialog-title", class: "cat-dlg-head" }, "管理记账类别", -1)),
+              _cache[22] || (_cache[22] = createBaseVNode("div", { id: "expense-category-dialog-title", class: "cat-dlg-head" }, "管理费用分类按钮", -1)),
               _cache[23] || (_cache[23] = createBaseVNode("p", { class: "cat-dlg-tip" }, [
-                createTextVNode(" 每本台账可独立新增、改名和停用期间费用类别。"),
+                createTextVNode(" 这里管理的就是“记一笔”区域中的费用分类按钮，可新增、修改名称或删除。"),
                 createBaseVNode("br"),
-                createBaseVNode("b", null, "停用不是删除："),
-                createTextVNode("旧账、汇总和 Excel 对账仍会保留；固定的货款单列不会被停用。")
+                createBaseVNode("b", null, "删除分类不会删除账目："),
+                createTextVNode("旧账、汇总和 Excel 对账仍会保留，需要时可恢复；固定的货款单列不能删除。")
               ], -1)),
               createBaseVNode("div", { class: "cat-dlg-add" }, [
                 withDirectives(createBaseVNode("input", {
@@ -2260,7 +2267,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     createBaseVNode("div", { class: "cat-dlg-meta" }, [
                       createBaseVNode("span", _hoisted_64, toDisplayString((catForm.value.names[c.id] || "").slice(0, 2) || "—"), 1),
                       createBaseVNode("span", { class: "cat-dlg-usage" }, toDisplayString(categoryUsage(c.id).count) + " 笔 · " + toDisplayString(unref(formatGoalNumber)(categoryUsage(c.id).amount)) + toDisplayString(unit.value), 1),
-                      c.group === "unclassified" ? (openBlock(), createElementBlock("span", { key: 0, class: "cat-dlg-status protected" }, "历史保留")) : c.archivedAt ? (openBlock(), createElementBlock("span", { key: 1, class: "cat-dlg-status" }, "已停用")) : createCommentVNode("", true)
+                      c.group === "unclassified" ? (openBlock(), createElementBlock("span", { key: 0, class: "cat-dlg-status protected" }, "历史保留")) : c.archivedAt ? (openBlock(), createElementBlock("span", { key: 1, class: "cat-dlg-status" }, "已删除")) : createCommentVNode("", true)
                     ]),
                     createBaseVNode("div", { class: "cat-dlg-actions-inline" }, [
                       unref(EXPENSE_CATS).some((d) => d.id === c.id) ? (openBlock(), createElementBlock("button", {
@@ -2284,10 +2291,10 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                         key: 3,
                         type: "button",
                         class: "ghost cat-dlg-remove",
-                        title: "安全删除：停用后保留历史记录",
+                        title: "从记账按钮中删除，历史账目仍会保留",
                         disabled: catForm.value.busy,
                         onClick: ($event) => archiveCategoryFromForm(c)
-                      }, "停用", 8, _cat_manage_action_props)) : (openBlock(), createElementBlock("span", {
+                      }, "删除", 8, _cat_manage_action_props)) : (openBlock(), createElementBlock("span", {
                         key: 4,
                         class: "cat-dlg-status protected"
                       }, "固定"))

@@ -2777,6 +2777,18 @@ async function runPackagedSmokeTest(main, widget) {
     const widgetResult = await checkWindow(widget);
     const captureDir = process.env.TIMEMASTER_SMOKE_CAPTURE_DIR;
     if (captureDir) {
+      const smokeList = repo.createList("产品研发");
+      const personalList = repo.createList("个人成长");
+      const todayForTasks = localYmd$1();
+      const tomorrowDate = /* @__PURE__ */ new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowForTasks = localYmd$1(tomorrowDate);
+      for (const todo of [
+        { listId: smokeList.id, title: "整理 0.1.5 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
+        { listId: smokeList.id, title: "完善开源项目文档", date: todayForTasks, startTime: "19:15", endTime: "20:45", priority: 2, quadrant: 2 },
+        { listId: smokeList.id, title: "回顾用户反馈", date: tomorrowForTasks, startTime: "09:30", endTime: "10:00", priority: 2, quadrant: 3 },
+        { listId: personalList.id, title: "阅读技术文章", date: todayForTasks, startTime: "22:00", endTime: "23:00", priority: 1, quadrant: 4 }
+      ]) repo.createTodo(todo);
       const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
       const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
       repo.renameExpenseCategory(ledger.id, "office", "软件订阅");
@@ -2804,6 +2816,25 @@ async function runPackagedSmokeTest(main, widget) {
       });
       migrateExpenseCategories(ledger, data.expenses);
       pushSnapshot();
+      main.webContents.send("app:navigate", { view: "calendar", date: today });
+      main.setSize(1280, 800);
+      await delay(450);
+      const calendarCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "calendar.png"), calendarCapture.toPNG());
+      await main.webContents.executeJavaScript(`[...document.querySelectorAll('.nav-item')].find((el) => el.textContent.includes('全部待办'))?.click()`);
+      await delay(250);
+      const todoCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "todos.png"), todoCapture.toPNG());
+      await main.webContents.executeJavaScript(`[...document.querySelectorAll('.nav-item')].find((el) => el.textContent.includes('四象限'))?.click()`);
+      await delay(250);
+      const matrixCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "matrix.png"), matrixCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('button[title="设置"]')?.click()`);
+      await delay(200);
+      const settingsCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "settings.png"), settingsCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.mask')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+      await delay(100);
       main.webContents.send("app:navigate", { view: "expense", goalId: ledger.id, date: today });
       main.setSize(1280, 800);
       await delay(450);

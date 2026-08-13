@@ -116,6 +116,13 @@ test('expense category dialogs close after save and renderer dictionaries resist
   assert.match(categoryActions, /"仅供查看"/)
 })
 
+test('expense category controls are exposed beside the actual ledger buttons', () => {
+  assert.match(mainRenderer, /编辑费用分类按钮/)
+  assert.match(mainRenderer, /这里管理的就是“记一笔”区域中的费用分类按钮/)
+  assert.match(mainRenderer, /删除分类不会删除账目/)
+  assert.match(mainRenderer, /从记账按钮中删除，历史账目仍会保留/)
+})
+
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {
   assert.match(mainRenderer, /function calendarExpenseSummary\(entries = \[\]\)/)
   assert.match(mainRenderer, /const key = JSON\.stringify\(\[goalId, categoryId\]\)/)

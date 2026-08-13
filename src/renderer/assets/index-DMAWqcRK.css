@@ -692,6 +692,20 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.exp-cat-btn-inline[data-v-bfbd477c] {
+  margin-left: auto;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+  color: var(--accent);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.exp-cat-btn-inline[data-v-bfbd477c]:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+}
 .exp-cats[data-v-bfbd477c] {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

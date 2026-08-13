@@ -5,7 +5,7 @@
 TimeMaster V2 当前存在三个必须明确区分的层次：
 
 ```text
-src/                       0.1.4 当前可编辑、可构建输入
+src/                       0.1.5 当前可编辑、可构建输入
         │ electron-vite build
         ▼
 out/                       生成的主进程、preload 与 renderer 产物
@@ -38,7 +38,7 @@ Main process
 
 ## 数据模型与持久化
 
-应用显式把 Electron `userData` 指向 `%APPDATA%\timemaster-v2\`。主要数据采用 JSON；写入时使用临时文件再替换，并保留恢复副本和无法解析的 `.broken-*` 文件。0.1.3 正式版使用数据模型 v3；2026-08-12 定版的 0.1.4 Windows x64 正式版使用 v4。0.1.4 安装包未经过 Authenticode 签名；本架构说明不表示该安装包已经上传到 GitHub Release。
+应用显式把 Electron `userData` 指向 `%APPDATA%\timemaster-v2\`。主要数据采用 JSON；写入时使用临时文件再替换，并保留恢复副本和无法解析的 `.broken-*` 文件。0.1.3 正式版使用数据模型 v3；0.1.4 与 0.1.5 Windows x64 正式版使用 v4。0.1.5 安装包未经过 Authenticode 签名；本架构说明不表示该安装包已经上传到 GitHub Release。
 
 主要实体包括：
 
@@ -59,7 +59,7 @@ Excel 对账以稳定类别 ID 而不是可变显示名称作为汇总键，并�
 
 ## 外部服务
 
-0.1.3 和 0.1.4 正式版中，只有天气模块有意访问外部服务；费用类别管理不增加联网目的地：
+0.1.3—0.1.5 正式版中，只有天气模块有意访问外部服务；费用分类管理和界面改版不增加联网目的地：
 
 - `https://api.open-meteo.com`
 - `https://geocoding-api.open-meteo.com`
