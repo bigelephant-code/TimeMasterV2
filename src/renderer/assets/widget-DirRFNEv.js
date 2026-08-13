@@ -180,7 +180,10 @@ const _hoisted_32 = {
   key: 3,
   class: "wx-stat-v wx-cd-stat-v"
 };
-const _hoisted_33 = { class: "wx-focus-orb" };
+const _hoisted_33 = {
+  class: "wx-focus-mark",
+  "aria-hidden": "true"
+};
 const _hoisted_34 = { class: "wx-focus-copy" };
 const _hoisted_35 = ["title"];
 const _hoisted_36 = ["title"];
@@ -741,7 +744,7 @@ const _sfc_main = {
     const focusStatusLabel = computed(() => {
       if (focusTimer.value.status === "running") return "专注进行中";
       if (focusTimer.value.status === "paused") return "倒计时已暂停";
-      return `${focusTimer.value.durationMinutes} 分钟倒计时`;
+      return "点击设置本轮计划";
     });
     const clampFocusMinutes = (value) => Math.min(240, Math.max(1, Math.round(Number(value) || 30)));
     function openFocusPanel() {
@@ -1531,31 +1534,31 @@ const _sfc_main = {
                 title: "设置专注时长与查看今日记录",
                 onClick: openFocusPanel
               }, [
-                createBaseVNode("span", _hoisted_33, [
-                  createVNode(_sfc_main$3, {
-                    name: "clock",
-                    size: 14
-                  })
-                ]),
+                createBaseVNode("span", _hoisted_33),
                 createBaseVNode("span", _hoisted_34, [
-                  _cache[79] || (_cache[79] = createBaseVNode("b", null, "专注办公", -1)),
+                  _cache[79] || (_cache[79] = createBaseVNode("b", null, "专注时间", -1)),
                   createBaseVNode("small", null, toDisplayString(focusStatusLabel.value), 1)
                 ])
               ]),
-              createBaseVNode("button", {
-                class: "wx-focus-clock",
-                type: "button",
-                title: "查看专注详情",
-                onClick: openFocusPanel
-              }, toDisplayString(focusClock.value), 1),
-              createBaseVNode("button", {
-                class: "wx-focus-summary",
-                type: "button",
-                title: "查看今日专注记录",
-                onClick: openFocusPanel
-              }, [
-                _cache[80] || (_cache[80] = createBaseVNode("span", null, "今日累计", -1)),
-                createBaseVNode("b", null, toDisplayString(todayFocusLabel.value), 1)
+              createBaseVNode("div", { class: "wx-focus-metrics" }, [
+                createBaseVNode("button", {
+                  class: "wx-focus-clock",
+                  type: "button",
+                  title: "查看本轮专注计划",
+                  onClick: openFocusPanel
+                }, [
+                  _cache[80] || (_cache[80] = createBaseVNode("span", null, "本轮", -1)),
+                  createBaseVNode("b", null, toDisplayString(focusClock.value), 1)
+                ]),
+                createBaseVNode("button", {
+                  class: "wx-focus-summary",
+                  type: "button",
+                  title: "查看今日专注记录",
+                  onClick: openFocusPanel
+                }, [
+                  createBaseVNode("span", null, "今日"),
+                  createBaseVNode("b", null, toDisplayString(todayFocusLabel.value), 1)
+                ])
               ]),
               createBaseVNode("button", {
                 class: "wx-focus-primary",
@@ -1587,24 +1590,26 @@ const _sfc_main = {
                 title: "查看专注详情",
                 onClick: openFocusPanel
               }, toDisplayString(focusClock.value), 1),
-              createBaseVNode("button", {
-                class: "wx-focus-active-toggle",
-                type: "button",
-                title: focusTimer.value.status === "running" ? "暂停专注" : "继续专注",
-                onClick: handleFocusPrimary
-              }, [
-                createVNode(_sfc_main$3, {
-                  name: focusTimer.value.status === "running" ? "pause" : "play",
-                  size: 12
-                }, null, 8, ["name"]),
-                createBaseVNode("span", null, toDisplayString(focusTimer.value.status === "running" ? "暂停" : "继续"), 1)
-              ], 8, _hoisted_35),
-              createBaseVNode("button", {
-                class: "wx-focus-cancel",
-                type: "button",
-                title: "取消本轮专注，不计入今日汇总",
-                onClick: cancelFocusFromBar
-              }, "取消")
+              createBaseVNode("div", { class: "wx-focus-active-actions" }, [
+                createBaseVNode("button", {
+                  class: "wx-focus-active-toggle",
+                  type: "button",
+                  title: focusTimer.value.status === "running" ? "暂停专注" : "继续专注",
+                  onClick: handleFocusPrimary
+                }, [
+                  createVNode(_sfc_main$3, {
+                    name: focusTimer.value.status === "running" ? "pause" : "play",
+                    size: 12
+                  }, null, 8, ["name"]),
+                  createBaseVNode("span", null, toDisplayString(focusTimer.value.status === "running" ? "暂停" : "继续"), 1)
+                ], 8, _hoisted_35),
+                createBaseVNode("button", {
+                  class: "wx-focus-cancel",
+                  type: "button",
+                  title: "取消本轮专注，不计入今日汇总",
+                  onClick: cancelFocusFromBar
+                }, "取消")
+              ])
             ], 8, ["aria-hidden"])
           ])
         ], 6),
@@ -2041,13 +2046,10 @@ const _sfc_main = {
           }, [
             createBaseVNode("div", _hoisted_108, [
               createBaseVNode("span", _hoisted_109, [
-                createVNode(_sfc_main$3, {
-                  name: "clock",
-                  size: 16
-                })
+                createBaseVNode("i", { class: "wx-focus-panel-mark", "aria-hidden": "true" })
               ]),
               _cache[88] || (_cache[88] = createBaseVNode("span", null, [
-                createBaseVNode("b", null, "专注办公"),
+                createBaseVNode("b", null, "专注时间"),
                 createBaseVNode("small", null, "自定义倒计时 · 每日自动汇总")
               ], -1)),
               createBaseVNode("i", {

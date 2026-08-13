@@ -884,7 +884,7 @@ const repo = {
     }
     return { ok: true, date: day, removedExpenses: result.removedExpenses };
   },
-  /* ---------- 专注办公 ---------- */
+  /* ---------- 专注时间 ---------- */
   setFocusDuration(minutes) {
     if (data.focusTimer.status !== "idle") return data.focusTimer;
     data.focusTimer = defaultFocusTimer(focusMinutes(minutes));

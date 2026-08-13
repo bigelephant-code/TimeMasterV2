@@ -701,13 +701,13 @@ to {
 }
 }
 
-/* ---------- 专注办公 ---------- */
+/* ---------- 专注时间 ---------- */
 .wx-focusbar {
   --focus-color: #6d8fff;
   position: relative;
   isolation: isolate;
   flex: none;
-  height: 56px;
+  height: 66px;
   margin: -2px 12px 8px;
   perspective: 760px;
 }
@@ -726,12 +726,12 @@ to {
   inset: 0;
   display: grid;
   align-items: center;
-  gap: 4px;
-  padding: 5px 6px;
+  gap: 6px;
+  padding: 7px 8px;
   overflow: hidden;
   backface-visibility: hidden;
   border: 1px solid color-mix(in srgb, var(--focus-color) 22%, var(--border-soft));
-  border-radius: 14px;
+  border-radius: 16px;
   background:
     radial-gradient(
       130px 70px at 4% -20%,
@@ -748,21 +748,21 @@ to {
     0 8px 22px color-mix(in srgb, black 6%, transparent);
 }
 .wx-focus-front {
-  grid-template-columns: minmax(100px, 1fr) 63px 72px 51px;
+  grid-template-columns: minmax(98px, 1fr) minmax(116px, 132px) 58px;
   pointer-events: auto;
 }
 .wx-focus-back {
-  grid-template-columns: 72px minmax(94px, 1fr) 51px 47px;
+  grid-template-columns: 64px minmax(106px, 1fr) 96px;
   transform: rotateX(180deg);
   pointer-events: none;
-  border-color: color-mix(in srgb, var(--focus-color) 46%, var(--border));
+  border-color: color-mix(in srgb, #ff4058 44%, var(--border));
   background:
-    radial-gradient(150px 90px at 48% 48%, color-mix(in srgb, var(--focus-color) 26%, transparent), transparent 72%),
-    linear-gradient(125deg, color-mix(in srgb, #0b1734 82%, var(--bg-elev)), color-mix(in srgb, var(--focus-color) 16%, #0b1020));
+    radial-gradient(180px 94px at 51% 45%, rgba(255, 48, 76, 0.22), transparent 72%),
+    linear-gradient(125deg, #111827, #17101a 58%, #0c111e);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
-    0 8px 25px color-mix(in srgb, var(--focus-color) 28%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--focus-color) 8%, transparent);
+    0 9px 26px rgba(123, 12, 35, 0.28),
+    0 0 0 1px rgba(255, 62, 88, 0.08);
 }
 .wx-focusbar.is-active .wx-focus-front {
   pointer-events: none;
@@ -771,7 +771,7 @@ to {
   pointer-events: auto;
 }
 .wx-focusbar.is-running {
-  --focus-color: #5b86ff;
+  --focus-color: #ff3f57;
 }
 .wx-focusbar.is-paused {
   --focus-color: #e9a12a;
@@ -814,106 +814,140 @@ to {
 .wx-focus-info {
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 38px;
-  padding: 0 3px;
+  gap: 9px;
+  height: 48px;
+  padding: 0 4px;
   text-align: left;
-  border-radius: 9px;
+  border-radius: 11px;
 }
-.wx-focus-orb {
+.wx-focus-mark {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex: none;
   display: grid;
   place-items: center;
-  color: var(--focus-color);
-  border: 1px solid color-mix(in srgb, var(--focus-color) 28%, var(--border-soft));
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 26%, var(--border-soft));
+  border-radius: 11px;
   background:
-    radial-gradient(circle at 32% 24%, color-mix(in srgb, white 24%, transparent), transparent 38%),
-    color-mix(in srgb, var(--focus-color) 10%, var(--bg-elev));
+    radial-gradient(circle at 34% 24%, color-mix(in srgb, white 25%, transparent), transparent 36%),
+    linear-gradient(145deg, color-mix(in srgb, var(--focus-color) 13%, var(--bg-elev)), color-mix(in srgb, var(--focus-color) 5%, var(--bg-soft)));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
-    0 4px 11px color-mix(in srgb, var(--focus-color) 13%, transparent);
+    0 5px 13px color-mix(in srgb, var(--focus-color) 14%, transparent);
 }
-.wx-focusbar.is-running .wx-focus-orb::after {
+.wx-focus-mark::before,
+.wx-focus-panel-mark::before {
   content: '';
   position: absolute;
-  inset: -3px;
-  border: 1px solid color-mix(in srgb, var(--focus-color) 35%, transparent);
-  border-radius: 12px;
-  animation: wx-focus-breathe 1.8s ease-out infinite;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 72%, var(--text));
+  border-radius: 4px;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.wx-focus-mark::after,
+.wx-focus-panel-mark::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--focus-color) 82%, white);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--focus-color) 48%, transparent);
+  transform: translate(-50%, -50%);
 }
 .wx-focus-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 .wx-focus-copy b {
   overflow: hidden;
   color: var(--text);
   font-family: 'Segoe UI Variable Text', 'Microsoft YaHei UI', sans-serif;
-  font-size: 11px;
-  font-weight: 720;
+  font-size: 12px;
+  font-weight: 760;
   line-height: 1.2;
-  letter-spacing: 0.15px;
+  letter-spacing: 0.35px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wx-focus-copy small {
   overflow: hidden;
   color: color-mix(in srgb, var(--text) 72%, var(--text-dim));
-  font-size: 9px;
-  font-weight: 650;
+  font-size: 8.5px;
+  font-weight: 620;
   line-height: 1.25;
   letter-spacing: 0.08px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wx-focus-clock {
-  color: color-mix(in srgb, var(--focus-color) 78%, var(--text));
-  font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
-  font-size: 15px;
-  font-weight: 720;
-  line-height: 1;
-  letter-spacing: -0.35px;
-  font-variant-numeric: tabular-nums;
+.wx-focus-metrics {
+  height: 46px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 16%, var(--border-soft));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--focus-color) 4%, var(--bg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 9%, transparent);
 }
+.wx-focus-clock,
 .wx-focus-summary {
   display: flex;
   min-width: 0;
-  height: 30px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
+  padding: 0 3px;
+}
+.wx-focus-clock span,
+.wx-focus-summary span {
+  color: color-mix(in srgb, var(--text) 55%, var(--text-faint));
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.5px;
+}
+.wx-focus-summary {
   border-left: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
 }
-.wx-focus-summary span {
-  color: color-mix(in srgb, var(--text) 68%, var(--text-dim));
-  font-size: 8.5px;
-  font-weight: 650;
-  line-height: 1.15;
-}
-.wx-focus-summary b {
-  max-width: 68px;
-  margin-top: 2px;
+.wx-focus-clock b {
   overflow: hidden;
   color: color-mix(in srgb, var(--focus-color) 74%, var(--text));
-  font-size: 10px;
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  font-size: 15.5px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: -0.45px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wx-focus-summary b {
+  max-width: 60px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 9.5px;
   font-weight: 740;
-  line-height: 1.2;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wx-focus-primary {
   display: flex;
-  height: 29px;
+  height: 40px;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 0 5px;
+  gap: 4px;
+  padding: 0 7px;
   color: #fff;
   border: 1px solid color-mix(in srgb, white 17%, var(--focus-color));
   border-radius: 9px;
@@ -925,8 +959,8 @@ to {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.24),
     0 5px 12px color-mix(in srgb, var(--focus-color) 24%, transparent);
-  font-size: 9px;
-  font-weight: 680;
+  font-size: 9.5px;
+  font-weight: 720;
   transition:
     transform 0.15s ease,
     filter 0.15s ease;
@@ -985,43 +1019,49 @@ to {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: #ff4058;
   font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
-  font-size: clamp(24px, 7.2vw, 29px);
-  font-weight: 780;
+  font-size: clamp(30px, 8.6vw, 36px);
+  font-weight: 820;
   line-height: 1;
   letter-spacing: -1.2px;
   font-variant-numeric: tabular-nums;
   text-shadow:
-    0 0 12px color-mix(in srgb, var(--focus-color) 82%, transparent),
-    0 2px 4px rgba(0, 0, 0, 0.35);
+    0 0 15px rgba(255, 48, 76, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.42);
 }
 .wx-focusbar.is-running .wx-focus-active-clock {
   animation: wx-focus-clock-breathe 2.2s ease-in-out infinite;
 }
+.wx-focus-active-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 4px;
+}
 .wx-focus-active-toggle,
 .wx-focus-cancel {
-  height: 31px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 0 6px;
-  border-radius: 9px;
-  font-size: 9px;
+  gap: 2px;
+  padding: 0 4px;
+  border-radius: 10px;
+  font-size: 8.5px;
   font-weight: 720;
   transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
 }
 .wx-focus-active-toggle {
   color: #fff;
-  border: 1px solid color-mix(in srgb, var(--focus-color) 54%, white);
-  background: color-mix(in srgb, var(--focus-color) 31%, transparent);
+  border: 1px solid rgba(255, 91, 112, 0.58);
+  background: rgba(255, 52, 78, 0.2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .wx-focus-cancel {
-  color: #ffdadd;
-  border: 1px solid color-mix(in srgb, #ff6170 46%, var(--border));
-  background: color-mix(in srgb, #ff3f52 14%, transparent);
+  color: #dce3f1;
+  border: 1px solid rgba(176, 188, 213, 0.25);
+  background: rgba(110, 123, 151, 0.12);
 }
 .wx-focus-active-toggle:hover,
 .wx-focus-cancel:hover {
@@ -1089,6 +1129,13 @@ to {
   background: color-mix(in srgb, var(--focus-color) 10%, var(--bg-soft));
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 15%, transparent);
 }
+.wx-focus-panel-mark {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
 .wx-focus-panel-head > span:nth-child(2) {
   display: flex;
   min-width: 0;
@@ -1105,7 +1152,7 @@ to {
   color: var(--text-faint);
   font-size: 9px;
 }
-.wx-focus-panel-head i {
+.wx-focus-panel-head > i {
   padding: 4px 7px;
   color: var(--text-faint);
   border: 1px solid var(--border-soft);
@@ -1116,8 +1163,8 @@ to {
   font-weight: 620;
   white-space: nowrap;
 }
-.wx-focus-panel-head i.is-running,
-.wx-focus-panel-head i.is-paused {
+.wx-focus-panel-head > i.is-running,
+.wx-focus-panel-head > i.is-paused {
   color: var(--focus-color);
   border-color: color-mix(in srgb, var(--focus-color) 26%, var(--border));
   background: color-mix(in srgb, var(--focus-color) 9%, var(--bg-soft));
@@ -1401,8 +1448,7 @@ to {
   .wx-focus-presets label {
     transition: none;
 }
-.wx-focusbar.is-running .wx-focus-orb::after,
-  .wx-focusbar.is-running .wx-focus-active-clock,
+.wx-focusbar.is-running .wx-focus-active-clock,
   .wx-focus-live-dot {
     animation: none;
 }
