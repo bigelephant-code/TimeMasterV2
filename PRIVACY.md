@@ -2,11 +2,11 @@
 
 Last updated: 2026-08-13
 
-Applies to: the TimeMaster 0.1.10 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
+Applies to: the TimeMaster 0.1.11 formal Windows x64 release and the preserved TimeMaster V2 0.1.3 release artifact. Version-specific behavior is identified below.
 
 TimeMaster is a local-first Windows application. It has no account system, advertising, analytics, telemetry, remote crash reporting, or automatic-update service. The project maintainer does not automatically receive your tasks, focus history, goals, expense categories or entries, settings, or exported workbooks. Expense-category, rollover-history, and interface changes add no new network destination or third-party data sharing.
 
-Current released behavior refers to 0.1.10; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.10 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
+Current released behavior refers to 0.1.11; the original 0.1.3 artifact remains documented as the recovery/reference release. A modified build, operating system, network intermediary, or third-party distribution may behave differently. This notice describes the finalized 0.1.11 behavior but does not assert that its installer has already been uploaded to GitHub Releases.
 
 ## Data stored on your computer
 
@@ -47,7 +47,7 @@ Each expense entry stores a stable category ID. Renaming a category changes the 
 
 ## Network activity
 
-Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in both the 0.1.3 and 0.1.10 releases that intentionally calls an Internet service.
+Core calendar, task, focus, goal, reminder, and expense functions do not require an account or cloud service. Weather is the only feature in releases 0.1.3 through 0.1.11 that intentionally calls an Internet service.
 
 ### City search
 
@@ -109,7 +109,7 @@ If you open an Issue, Discussion, pull request, or security report, the informat
 
 ## Release integrity
 
-The formal 0.1.4 Windows x64 installer and the recovered 0.1.3 installer are not Authenticode-signed. Windows therefore cannot verify a publisher identity for them and may show a SmartScreen warning. Obtain an installer through a trusted official channel and compare the SHA-256 published alongside that exact artifact before running it. A matching hash confirms file equality with the referenced artifact; it does not replace code signing or guarantee that a program is harmless. This notice does not claim that a 0.1.4 installer has already been uploaded to GitHub Releases.
+The formal 0.1.11 Windows x64 installer and the recovered 0.1.3 installer are not Authenticode-signed. Windows therefore cannot verify a publisher identity for them and may show a SmartScreen warning. Obtain an installer through a trusted official channel and compare the SHA-256 published alongside that exact artifact before running it. A matching hash confirms file equality with the referenced artifact; it does not replace code signing or guarantee that a program is harmless. This notice does not claim that a 0.1.11 installer has already been uploaded to GitHub Releases.
 
 ## Questions
 
