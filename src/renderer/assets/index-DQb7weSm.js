@@ -3597,6 +3597,7 @@ const RemoteReminderSettings = {
     const draft = ref({
       enabled: false,
       gatewayUrl: REMOTE_REMINDER_DEFAULT_GATEWAY,
+      mode: "agent",
       target: "",
       accountId: "",
       includeNote: false
@@ -3617,6 +3618,7 @@ const RemoteReminderSettings = {
       draft.value = {
         enabled: Boolean(source.enabled),
         gatewayUrl: String(source.gatewayUrl || REMOTE_REMINDER_DEFAULT_GATEWAY),
+        mode: source.mode === "direct" ? "direct" : "agent",
         target: String(source.target || ""),
         accountId: String(source.accountId || ""),
         includeNote: Boolean(source.includeNote)
@@ -3659,6 +3661,7 @@ const RemoteReminderSettings = {
         const payload = {
           enabled: Boolean(draft.value.enabled),
           gatewayUrl: String(draft.value.gatewayUrl || "").trim(),
+          mode: draft.value.mode === "direct" ? "direct" : "agent",
           target: String(draft.value.target || "").trim(),
           accountId: String(draft.value.accountId || "").trim(),
           includeNote: Boolean(draft.value.includeNote),
@@ -3694,7 +3697,7 @@ const RemoteReminderSettings = {
       }
     };
     const savedActionsReady = () => !loading.value && !busy.value && !dirty.value && tokenConfigured.value;
-    const savedActionTitle = () => dirty.value ? "请先保存配置" : tokenConfigured.value ? "" : "请先填写 Hook Token 并保存配置";
+    const savedActionTitle = () => dirty.value ? "请先保存配置" : tokenConfigured.value ? "" : draft.value.mode === "direct" ? "请先填写 Gateway operator Token 并保存配置" : "请先填写 Hook Token 并保存配置";
     onMounted(load);
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("section", {
@@ -3750,12 +3753,12 @@ const RemoteReminderSettings = {
               createBaseVNode("div", { class: "remote-reminder-field-hint" }, "仅连接本机 OpenClaw（127.0.0.1 或 localhost）")
             ]),
             createBaseVNode("div", { class: "field remote-reminder-field full" }, [
-              createBaseVNode("label", { for: "remote-hook-token" }, "Hook Token"),
+              createBaseVNode("label", { for: "remote-hook-token" }, draft.value.mode === "direct" ? "Gateway operator Token" : "Hook Token", 1),
               createBaseVNode("input", {
                 id: "remote-hook-token",
                 type: "password",
                 value: token.value,
-                placeholder: tokenConfigured.value ? "留空表示不更改" : "请输入 Hook Token",
+                placeholder: tokenConfigured.value ? "留空表示不更改" : draft.value.mode === "direct" ? "请输入该 Gateway 的 operator Token" : "请输入 Hook Token",
                 maxlength: "4096",
                 autocomplete: "new-password",
                 spellcheck: "false",
@@ -3764,7 +3767,7 @@ const RemoteReminderSettings = {
               }, null, 40, ["value", "placeholder", "disabled"]),
               createBaseVNode("div", {
                 class: normalizeClass(["remote-reminder-field-hint", { secure: tokenConfigured.value }])
-              }, tokenConfigured.value ? "时间大师副本已加密保存，留空表示不更改" : "时间大师保存的副本会加密，保存后不再回显", 2)
+              }, draft.value.mode === "direct" ? "直投使用该 Gateway 的 operator Token；若此前保存的是 Hook Token，请重新填写" : tokenConfigured.value ? "时间大师副本已加密保存，留空表示不更改" : "时间大师保存的副本会加密，保存后不再回显", 2)
             ]),
             createBaseVNode("div", { class: "field remote-reminder-field" }, [
               createBaseVNode("label", { for: "remote-qq-target" }, "QQ 目标"),
@@ -3792,6 +3795,21 @@ const RemoteReminderSettings = {
                 onInput: (event) => updateDraft("accountId", event.target.value)
               }, null, 40, ["value", "disabled"])
             ])
+          ]),
+          createBaseVNode("div", { class: "remote-reminder-note-switch" }, [
+            createBaseVNode("div", null, [
+              createBaseVNode("div", { class: "k" }, "原文直投"),
+              createBaseVNode("div", { class: "d" }, draft.value.mode === "direct" ? "提醒原文经 Gateway 直接送达 QQ，不经过模型复述；需要 operator Token" : "当前经提醒代理复述后再发送；模型失败时提醒会静默丢失", 1)
+            ]),
+            createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass(["toggle", { on: draft.value.mode === "direct" }]),
+              role: "switch",
+              "aria-checked": draft.value.mode === "direct",
+              "aria-label": "原文直投",
+              disabled: Boolean(busy.value),
+              onClick: () => updateDraft("mode", draft.value.mode === "direct" ? "agent" : "direct")
+            }, null, 10, ["aria-checked", "disabled"])
           ]),
           createBaseVNode("div", { class: "remote-reminder-note-switch" }, [
             createBaseVNode("div", null, [

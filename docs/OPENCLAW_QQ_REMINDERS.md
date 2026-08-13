@@ -200,7 +200,7 @@ openclaw agent --agent timemaster-reminders --message "只回复 REMINDER_AGENT_
 
 切换模式会改变 `routeKey`，队列中尚未投递的旧事件因此作废，不会用新模式重发旧提醒。
 
-当前状态：主进程与传输层已实现并测试，设置界面尚未提供切换开关。要启用直投，需要在 `settings.json` 中把 `remoteReminder.mode` 改为 `"direct"`，并在设置页的 Token 输入框改填该 Gateway 的 operator Token 后保存。
+启用方式：在“设置 → QQ Bot 主提醒”里打开“原文直投”开关，然后把 Token 输入框改填该 Gateway 的 operator Token 并保存。开关打开后，Token 的标签与提示会同步变为 operator Token，避免继续沿用 Hook Token。
 
 ## 6. 本地文件
 

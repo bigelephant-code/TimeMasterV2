@@ -212,6 +212,23 @@ test('expense category controls are exposed beside the actual ledger buttons onl
   assert.equal((mainRenderer.match(/onClick: openCatForm/g) || []).length, 1)
 })
 
+test('the reminder settings expose the direct bridge and label its credential correctly', () => {
+  const cardSource = mainRenderer.slice(
+    mainRenderer.indexOf('__name: "RemoteReminderSettings"'),
+    mainRenderer.indexOf('__name: "RemoteReminderSettings"') + 12000
+  )
+  // 默认必须是 agent；直投是用户显式打开的选择，不能因为读取到脏值就启用。
+  assert.match(cardSource, /mode: "agent"/)
+  assert.match(cardSource, /mode: source\.mode === "direct" \? "direct" : "agent"/)
+  assert.match(cardSource, /mode: draft\.value\.mode === "direct" \? "direct" : "agent"/)
+
+  assert.match(cardSource, /"原文直投"/)
+  assert.match(cardSource, /updateDraft\("mode", draft\.value\.mode === "direct" \? "agent" : "direct"\)/)
+  // 两种模式需要的凭据不同，界面必须说清楚要填哪一个。
+  assert.match(cardSource, /"Gateway operator Token" : "Hook Token"/)
+  assert.match(cardSource, /operator Token；若此前保存的是 Hook Token/)
+})
+
 test('widget expense quick entry can be cancelled without writing a record', () => {
   assert.match(widgetRenderer, /function onLedgerBlankClick\(event\)/)
   assert.match(widgetRenderer, /onClick: onLedgerBlankClick/)

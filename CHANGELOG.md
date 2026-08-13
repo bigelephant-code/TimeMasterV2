@@ -15,6 +15,7 @@
 
 - 增加 QQ 提醒直投桥 `remoteReminder.mode="direct"`：绕开 `/hooks/agent` 与模型复述，通过 Gateway WebSocket `send` 方法把提醒原文逐字送达，并复用既有的幂等键、分类与退避重试。默认仍为 `agent`，行为不变。
 - 直投握手只申请 `operator.write` 且只调用 `send`；连接中断或超时一律记为结果不确定，不会谎报送达，也不会盲目重发造成重复提醒。
+- 设置页“QQ Bot 主提醒”新增“原文直投”开关；打开后 Token 字段的标签、占位符与提示同步切换为 Gateway operator Token，避免误用 Hook Token。
 
 ### 修复
 
