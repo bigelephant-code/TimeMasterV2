@@ -1534,7 +1534,9 @@ const _sfc_main = {
                 title: "设置专注时长与查看今日记录",
                 onClick: openFocusPanel
               }, [
-                createBaseVNode("span", _hoisted_33),
+                createBaseVNode("span", _hoisted_33, [
+                  createBaseVNode("i", { class: "wx-focus-stopwatch" })
+                ]),
                 createBaseVNode("span", _hoisted_34, [
                   _cache[79] || (_cache[79] = createBaseVNode("b", null, "专注时间", -1)),
                   createBaseVNode("small", null, toDisplayString(focusStatusLabel.value), 1)
@@ -2046,7 +2048,9 @@ const _sfc_main = {
           }, [
             createBaseVNode("div", _hoisted_108, [
               createBaseVNode("span", _hoisted_109, [
-                createBaseVNode("i", { class: "wx-focus-panel-mark", "aria-hidden": "true" })
+                createBaseVNode("i", { class: "wx-focus-panel-mark", "aria-hidden": "true" }, [
+                  createBaseVNode("i", { class: "wx-focus-stopwatch" })
+                ])
               ]),
               _cache[88] || (_cache[88] = createBaseVNode("span", null, [
                 createBaseVNode("b", null, "专注时间"),

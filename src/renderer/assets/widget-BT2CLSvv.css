@@ -836,30 +836,40 @@ to {
     inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
     0 5px 13px color-mix(in srgb, var(--focus-color) 14%, transparent);
 }
-.wx-focus-mark::before,
-.wx-focus-panel-mark::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  border: 1px solid color-mix(in srgb, var(--focus-color) 72%, var(--text));
-  border-radius: 4px;
-  transform: translate(-50%, -50%) rotate(45deg);
+.wx-focus-stopwatch {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  display: block;
+  color: color-mix(in srgb, var(--focus-color) 76%, var(--text));
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, currentColor 0 1.3px, transparent 1.5px);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--focus-color) 20%, transparent);
 }
-.wx-focus-mark::after,
-.wx-focus-panel-mark::after {
+.wx-focus-stopwatch::before {
   content: '';
   position: absolute;
-  top: 50%;
+  top: -5px;
   left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--focus-color) 82%, white);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--focus-color) 48%, transparent);
-  transform: translate(-50%, -50%);
+  width: 7px;
+  height: 3px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 3px 3px 1px 1px;
+  transform: translateX(-50%);
+}
+.wx-focus-stopwatch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 1.5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translateX(-50%) rotate(-38deg);
+  transform-origin: 50% 100%;
 }
 .wx-focus-copy {
   display: flex;
