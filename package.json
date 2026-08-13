@@ -23,7 +23,7 @@
     "dev": "npm run ensure:electron && electron-vite dev",
     "start": "npm run ensure:electron && electron-vite preview",
     "check:reference": "node scripts/verify-runtime.mjs",
-    "test": "node --test tests/contracts.test.mjs tests/task-time.test.mjs tests/todo-rollovers.test.mjs tests/todo-completions.test.mjs tests/expense-categories.test.mjs tests/remote-reminders.test.mjs",
+    "test": "node --test tests/contracts.test.mjs tests/task-time.test.mjs tests/todo-rollovers.test.mjs tests/todo-completions.test.mjs tests/expense-categories.test.mjs tests/remote-reminders.test.mjs tests/ai-task-coach.test.mjs",
     "check": "npm run check:reference && npm test && npm run build && npm run verify:build",
     "build": "electron-vite build && node scripts/harden-built-csp.mjs",
     "verify:build": "node scripts/verify-build.mjs",

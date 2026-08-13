@@ -14,7 +14,8 @@ export default defineConfig({
           'todo-rollovers': r('src/main/todo-rollovers.js'),
           'todo-completions': r('src/main/todo-completions.js'),
           'expense-categories': r('src/main/expense-categories.js'),
-          'remote-reminders': r('src/main/remote-reminders.js')
+          'remote-reminders': r('src/main/remote-reminders.js'),
+          'ai-task-coach': r('src/main/ai-task-coach.js')
         }
       }
     }

@@ -26,12 +26,21 @@ It is designed for people who want one account-free Windows workspace to answer 
 |---|---|
 | Calendar | Month, week, and day views; Gregorian and Chinese lunar calendars, solar terms, festivals, and holidays |
 | Tasks | Multiple lists, priorities, start/end times, recurrence, reminders, drag and drop, and duration tracking |
+| AI task coach (in development) | OpenClaw-backed decomposition, official-link suggestions, and reviewable, undoable day-plan drafts |
 | Eisenhower matrix | Organize the same task data across important/urgent quadrants |
 | Focus | Configurable sessions, pause/resume, completion history, and daily totals |
 | Main tasks | Target progress, recurring accumulation, and historical entries |
 | Expense ledger | Date-based entries, corrections, history, and Excel reconciliation export |
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
+
+### In development (not yet released): AI task coach
+
+- A vague task such as “Open an AliExpress store” can become a next action, clarification questions, prerequisites, steps, HTTPS entry points, cautions, and follow-up suggestions through a dedicated OpenClaw agent.
+- “Plan today with AI” asks the model for ordering and duration estimates, then TimeMaster's deterministic local scheduler avoids fixed times, lunch, and occupied slots. The model produces a draft only; task times change only after explicit application, and the batch can be undone.
+- The feature is off by default and task notes are excluded by default. TimeMaster sends only the minimum task fields for the current request to a loopback `/v1/responses` endpoint; it does not give the agent the expense ledger, focus records, goals, or the whole data file. The selected model may still be remote.
+- The Gateway token is separate from the reminder Hook token. TimeMaster encrypts its local copies with Electron `safeStorage`; because a Responses Gateway token is highly privileged, a separate Gateway and restricted agent are recommended.
+- See the [OpenClaw AI task-coach setup guide](docs/OPENCLAW_AI_TASK_COACH.md).
 
 ### In development (not yet released): OpenClaw QQ Bot reminders
 
@@ -112,7 +121,7 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather is the only intentionally network-backed feature in formal releases 0.1.3 through 0.1.11. The current unreleased source additionally contains an opt-in OpenClaw QQ Bot reminder path that is off by default. Ordinary task, focus, goal, and expense data remain local-first; only the documented reminder fields are passed through the local OpenClaw service after the user enables it.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather is the only intentionally network-backed feature in formal releases 0.1.3 through 0.1.11. The current unreleased source additionally contains opt-in OpenClaw QQ Bot reminders and an AI task coach, both off by default. Ordinary task, focus, goal, and expense data remain local-first; only the documented minimum fields are passed through local OpenClaw after the user enables the corresponding feature.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.

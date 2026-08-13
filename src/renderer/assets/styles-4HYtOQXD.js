@@ -6661,7 +6661,13 @@ const _sfc_main = {
       bell: "M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0",
       play: "M7 4.5v15l12.5-7.5z",
       pause: "M8 5v14M16 5v14",
-      stop: "M7.5 7.5h9v9h-9z"
+      stop: "M7.5 7.5h9v9h-9z",
+      route: "M5 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM19 22.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM7.5 4H14a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4H10a4 4 0 0 0-4 4v1",
+      external: "M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6",
+      refresh: "M20 6v5h-5M4 18v-5h5M18.4 9A7 7 0 0 0 6 6.8L4 11M6 15a7 7 0 0 0 12 2.2L20 13",
+      undo: "M9 7l-5 5 5 5M5 12h8a6 6 0 0 1 6 6",
+      lock: "M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5z",
+      shield: "M12 3l8 3v5c0 5.2-3.3 8.5-8 10-4.7-1.5-8-4.8-8-10V6l8-3zM9 12l2 2 4-4"
     };
     const d = computed(() => PATHS[props.name] || "");
     return (_ctx, _cache) => {
@@ -7084,6 +7090,7 @@ function compareWithPrev(current, prev) {
   return { diff, pct: base ? Math.round(diff / Math.abs(base) * 100) : null };
 }
 const api = window.api;
+const emptyAICoachSnapshot = () => ({ taskPlans: {}, dayPlans: [] });
 const state = /* @__PURE__ */ reactive({
   ready: false,
   lists: [],
@@ -7092,6 +7099,8 @@ const state = /* @__PURE__ */ reactive({
   expenses: [],
   focusTimer: null,
   focusSessions: [],
+  aiTaskCoach: emptyAICoachSnapshot(),
+  aiCoachConfig: null,
   settings: null,
   // —— 界面状态，不落盘 ——
   view: "calendar",
@@ -7121,11 +7130,18 @@ function applySnapshot(snap) {
   state.expenses = snap.expenses || [];
   state.focusTimer = snap.focusTimer || null;
   state.focusSessions = snap.focusSessions || [];
+  state.aiTaskCoach = snap.aiTaskCoach || emptyAICoachSnapshot();
 }
 async function initStore() {
-  const [snap, settings] = await Promise.all([api.data.snapshot(), api.settings.get()]);
+  const isMainRenderer = /(?:^|\/)index\.html$/i.test(window.location.pathname);
+  const [snap, settings, aiCoachConfigResult] = await Promise.all([
+    api.data.snapshot(),
+    api.settings.get(),
+    isMainRenderer ? api.aiCoach?.getConfig?.().catch(() => null) : Promise.resolve(null)
+  ]);
   applySnapshot(snap);
   state.settings = settings;
+  state.aiCoachConfig = aiCoachConfigResult || null;
   applyTheme(settings.theme);
   state.ready = true;
   api.data.onChanged(applySnapshot);
@@ -7213,6 +7229,15 @@ const actions = {
   finishFocus: () => api.focus.finish(),
   cancelFocus: () => api.focus.cancel(),
   patchSettings: (patch) => api.settings.patch(patch),
+  getAICoachConfig: () => api.aiCoach.getConfig(),
+  saveAICoachConfig: (input) => api.aiCoach.saveConfig(input),
+  probeAICoach: () => api.aiCoach.probe(),
+  planAITask: (todoId) => api.aiCoach.planTask(todoId),
+  planAIDay: (date) => api.aiCoach.planDay(date),
+  applyAIDayPlan: (planId) => api.aiCoach.applyDayPlan(planId),
+  undoAIDayPlan: (planId) => api.aiCoach.undoDayPlan(planId),
+  toggleAIPlanStep: (todoId, stepId) => api.aiCoach.toggleStep(todoId, stepId),
+  openAICoachLink: (url) => api.aiCoach.openLink(url),
   /** 快速新增：只给标题和日期，其余走默认 */
   quickAdd(title, dateStr) {
     const trimmed = String(title || "").trim();

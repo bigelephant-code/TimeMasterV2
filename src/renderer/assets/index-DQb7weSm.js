@@ -1,4 +1,97 @@
 import { o as openBlock, c as createElementBlock, a as createBaseVNode, b as createVNode, _ as _sfc_main$b, u as unref, s as state, r as ref, d as actions, n as normalizeClass, t as toDisplayString, F as Fragment, e as renderList, f as normalizeStyle, g as countOpen, w as withDirectives, v as vModelText, h as withKeys, i as createCommentVNode, j as withModifiers, k as createBlock, l as relativeLabel, m as createTextVNode, p as listById, P as PRIORITIES, q as todayYmd, x as computed, y as taskTimeLabel, z as todoState, A as now, B as stopwatchLabel, C as elapsedMsOf, D as durationLabel, E as remainingLabel, G as deadlineState, H as timerDeadlineState, I as _export_sfc, J as watch, K as isoWeekNumber, L as isSameMonth, M as lunarInfo, N as todosOn, O as formatGoalNumber, Q as nextTick, R as addMonths, S as addDays, T as parseYmd, U as weekdayLabels, V as OPEX_CATS, W as weekGrid, X as monthGrid, Y as taskSortTime, Z as summarize, $ as expensesOn, a0 as cogsLabel, a1 as ledgerGoals, a2 as catsOf, a3 as visibleTodos, a4 as QUADRANTS, a5 as normalizeYmd, a6 as onMounted, a7 as onUnmounted, a8 as expenseCat, a9 as EXPENSE_CATS, aa as MAX_CAT_NAME, ab as periodShortLabel, ac as periodBounds, ad as expensesOfGoal, ae as ymdOf, af as periodKeyOfYmd, ag as compareWithPrev, ah as opexRanking, ai as periodSeries, aj as groupByDate, ak as groupByPeriod, al as stepPeriod, am as vModelSelect, an as REPEATS, ao as REMIND_OPTIONS, ap as taskDurationMinutes, aq as createStaticVNode, ar as resolveDynamicComponent, as as initStore, at as createApp } from "./styles-4HYtOQXD.js";
+
+/* AI 任务教练只保存结构化草案；任何链接都交给主进程校验后打开。 */
+const aiCoachUi = ref({
+  open: false,
+  mode: "task",
+  todoId: null,
+  date: todayYmd(),
+  plan: null,
+  busy: "",
+  error: "",
+  notice: ""
+});
+const aiCoachConfig = () => state.aiCoachConfig?.config || state.aiCoachConfig || {};
+const aiCoachEnabled = () => Boolean(aiCoachConfig().enabled);
+const coachArray = (value) => Array.isArray(value) ? value : [];
+function coachTaskPlan(todoId) {
+  const plans = state.aiTaskCoach?.taskPlans;
+  if (Array.isArray(plans)) return plans.find((plan) => plan?.todoId === todoId) || null;
+  return plans?.[todoId] || Object.values(plans || {}).find((plan) => plan?.todoId === todoId) || null;
+}
+function coachDayPlan(date) {
+  const plans = coachArray(state.aiTaskCoach?.dayPlans);
+  return [...plans].reverse().find((plan) => plan?.date === date) || null;
+}
+function coachErrorMessage(error, fallback = "AI 任务教练暂时不可用，待办没有被改动。") {
+  const raw = String(error?.message || error?.reason || error || fallback);
+  const clean = raw.replace(/^Error invoking remote method '[^']+':\s*/i, "").replace(/^Error:\s*/i, "").trim();
+  return clean || fallback;
+}
+function closeAICoach() {
+  if (aiCoachUi.value.busy) return;
+  aiCoachUi.value.open = false;
+  aiCoachUi.value.error = "";
+  aiCoachUi.value.notice = "";
+}
+async function runTaskCoach(todoId) {
+  aiCoachUi.value.busy = "task";
+  aiCoachUi.value.error = "";
+  aiCoachUi.value.notice = "";
+  try {
+    const result = await actions.planAITask(todoId);
+    if (!result?.ok || !result?.plan) throw new Error(result?.message || result?.reason || "AI 返回的任务计划不完整");
+    aiCoachUi.value.plan = result.plan;
+    aiCoachUi.value.notice = "拆解已生成，原待办尚未被改动。";
+  } catch (error) {
+    aiCoachUi.value.error = coachErrorMessage(error);
+  } finally {
+    aiCoachUi.value.busy = "";
+  }
+}
+async function openTaskCoach(todoOrId, generate = true) {
+  const todoId = typeof todoOrId === "string" ? todoOrId : todoOrId?.id;
+  if (!todoId) return;
+  aiCoachUi.value = {
+    open: true,
+    mode: "task",
+    todoId,
+    date: state.todos.find((todo) => todo.id === todoId)?.date || todayYmd(),
+    plan: coachTaskPlan(todoId),
+    busy: "",
+    error: aiCoachEnabled() ? "" : "请先在设置中启用并连接 AI 任务教练。",
+    notice: ""
+  };
+  if (generate && aiCoachEnabled()) await runTaskCoach(todoId);
+}
+async function runDayCoach(date) {
+  aiCoachUi.value.busy = "day";
+  aiCoachUi.value.error = "";
+  aiCoachUi.value.notice = "";
+  try {
+    const result = await actions.planAIDay(date);
+    if (!result?.ok || !result?.plan) throw new Error(result?.message || result?.reason || "AI 返回的今日排程不完整");
+    aiCoachUi.value.plan = result.plan;
+    aiCoachUi.value.notice = "今日排程是草案，确认应用前不会修改时间。";
+  } catch (error) {
+    aiCoachUi.value.error = coachErrorMessage(error);
+  } finally {
+    aiCoachUi.value.busy = "";
+  }
+}
+async function openDayCoach(date = todayYmd(), generate = true) {
+  aiCoachUi.value = {
+    open: true,
+    mode: "day",
+    todoId: null,
+    date,
+    plan: coachDayPlan(date),
+    busy: "",
+    error: aiCoachEnabled() ? "" : "请先在设置中启用并连接 AI 任务教练。",
+    notice: ""
+  };
+  if (generate && aiCoachEnabled()) await runDayCoach(date);
+}
 const _hoisted_1$a = { class: "titlebar" };
 const _hoisted_2$a = { class: "brand" };
 const _hoisted_3$8 = { class: "tools" };
@@ -286,6 +379,14 @@ const _sfc_main$8 = {
     const spentText = computed(() => durationLabel(props.todo.elapsedMs));
     const leftText = computed(() => remainingLabel(props.todo, now.value));
     const timeText = computed(() => taskTimeLabel(props.todo));
+    const aiPlan = computed(() => coachTaskPlan(props.todo.id));
+    const aiPlanStatus = computed(() => {
+      if (aiCoachUi.value.busy === "task" && aiCoachUi.value.todoId === props.todo.id) return "planning";
+      if (!aiPlan.value) return "";
+      if (aiPlan.value.stale) return "stale";
+      return aiPlan.value.status === "error" ? "error" : "ready";
+    });
+    const aiPlanLabel = computed(() => ({ planning: "规划中", ready: "已拆解", stale: "需更新", error: "生成失败" })[aiPlanStatus.value] || "");
     function onDragStart(e) {
       e.dataTransfer.setData("text/todo-id", props.todo.id);
       e.dataTransfer.effectAllowed = "move";
@@ -356,8 +457,23 @@ const _sfc_main$8 = {
               })
             ])) : createCommentVNode("", true),
             __props.showList && unref(listById).get(__props.todo.listId) ? (openBlock(), createElementBlock("span", _hoisted_13$5, toDisplayString(unref(listById).get(__props.todo.listId).name), 1)) : createCommentVNode("", true)
+            , aiPlanLabel.value ? createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass(["todo-ai-badge", `is-${aiPlanStatus.value}`]),
+              title: aiPlanStatus.value === "stale" ? "任务已变化，点击重新拆解" : "查看 AI 拆解",
+              onClick: withModifiers(() => openTaskCoach(__props.todo, aiPlanStatus.value === "stale"), ["stop"])
+            }, aiPlanLabel.value, 2) : createCommentVNode("", true)
           ])
         ]),
+        createBaseVNode("button", {
+          type: "button",
+          class: normalizeClass(["todo-ai-action", { active: Boolean(aiPlan.value), busy: aiPlanStatus.value === "planning" }]),
+          title: aiCoachEnabled() ? aiPlan.value ? "查看或重新生成 AI 拆解" : "让 AI 拆解任务" : "先在设置中启用 AI 任务教练",
+          "aria-label": aiPlan.value ? "查看 AI 拆解" : "让 AI 拆解任务",
+          onClick: withModifiers(() => openTaskCoach(__props.todo, !aiPlan.value || aiPlanStatus.value === "stale"), ["stop"])
+        }, [
+          createVNode(_sfc_main$b, { name: "route", size: 13 })
+        ], 2),
         createBaseVNode("button", {
           class: "del",
           title: "删除",
@@ -1309,6 +1425,15 @@ const _sfc_main$6 = {
             ])
           ], 64)) : createCommentVNode("", true),
           _cache[3] || (_cache[3] = createBaseVNode("div", { style: { "flex": "1" } }, null, -1)),
+          createBaseVNode("button", {
+            type: "button",
+            class: normalizeClass(["coach-toolbar-button", { ready: aiCoachEnabled() }]),
+            title: aiCoachEnabled() ? coachDayPlan(todayYmd()) ? "查看今天的 AI 时间安排" : "生成今天的时间安排草案" : "先在设置中启用 AI 任务教练",
+            onClick: () => openDayCoach(todayYmd(), !coachDayPlan(todayYmd()))
+          }, [
+            createVNode(_sfc_main$b, { name: "route", size: 14 }),
+            createBaseVNode("span", null, "AI 安排今天")
+          ], 2),
           createBaseVNode("div", _hoisted_3$4, [
             (openBlock(), createElementBlock(Fragment, null, renderList([
               { id: "all", n: "全部" },
@@ -2759,6 +2884,7 @@ const _sfc_main$3 = {
   setup(__props) {
     const draft = ref(blank());
     const titleEl = ref(null);
+    const coachAfterSave = ref(false);
     function blank() {
       return {
         id: null,
@@ -2785,6 +2911,10 @@ const _sfc_main$3 = {
           startTime: v.startTime || "",
           endTime: v.endTime ?? v.time ?? ""
         };
+        // The global option is only a default for a newly created task. Editing
+        // an existing task never sends it again unless the user explicitly
+        // enables this per-save switch.
+        coachAfterSave.value = Boolean(!v.id && aiCoachEnabled() && aiCoachConfig().autoPlanNewTodos);
       },
       { immediate: true }
     );
@@ -2809,9 +2939,9 @@ const _sfc_main$3 = {
       };
       if (!payload.title) return;
       if (!payload.startTime && !payload.endTime) payload.remindBefore = null;
-      if (isEdit.value) await actions.updateTodo(draft.value.id, payload);
-      else await actions.createTodo(payload);
+      const savedTodo = isEdit.value ? await actions.updateTodo(draft.value.id, payload) : await actions.createTodo(payload);
       actions.closeEditor();
+      if (savedTodo?.id && coachAfterSave.value && aiCoachEnabled()) await openTaskCoach(savedTodo, true);
     }
     async function del() {
       if (!isEdit.value) return actions.closeEditor();
@@ -2983,6 +3113,22 @@ const _sfc_main$3 = {
               }), 128))
             ])
           ]),
+          aiCoachEnabled() ? createBaseVNode("button", {
+            type: "button",
+            class: normalizeClass(["coach-after-save", { on: coachAfterSave.value }]),
+            role: "switch",
+            "aria-checked": coachAfterSave.value,
+            onClick: () => coachAfterSave.value = !coachAfterSave.value
+          }, [
+            createBaseVNode("span", { class: "coach-after-save-mark" }, [
+              createVNode(_sfc_main$b, { name: "route", size: 15 })
+            ]),
+            createBaseVNode("span", { class: "coach-after-save-copy" }, [
+              createBaseVNode("strong", null, "保存后让 AI 拆解"),
+              createBaseVNode("small", null, aiCoachConfig().includeNote ? "将发送标题、时间、优先级、四象限和备注" : "仅发送任务信息，备注不会发送")
+            ]),
+            createBaseVNode("span", { class: normalizeClass(["toggle", { on: coachAfterSave.value }]) })
+          ], 10, ["aria-checked"]) : createCommentVNode("", true),
           createBaseVNode("div", _hoisted_23, [
             isEdit.value ? (openBlock(), createElementBlock("button", {
               key: 0,
@@ -3001,6 +3147,440 @@ const _sfc_main$3 = {
         ], 32)
       ]);
     };
+  }
+};
+const AICoachDrawer = {
+  __name: "AICoachDrawer",
+  setup() {
+    const currentTodo = computed(() => state.todos.find((todo) => todo.id === aiCoachUi.value.todoId) || null);
+    const taskPlan = computed(() => aiCoachUi.value.mode === "task" ? aiCoachUi.value.plan || coachTaskPlan(aiCoachUi.value.todoId) : null);
+    const dayPlan = computed(() => aiCoachUi.value.mode === "day" ? aiCoachUi.value.plan || coachDayPlan(aiCoachUi.value.date) : null);
+    const todoTitle = (todoId) => state.todos.find((todo) => todo.id === todoId)?.title || "已删除的待办";
+    const minutesText = (minutes) => Number(minutes) > 0 ? `${Math.round(Number(minutes))} 分钟` : "";
+    const generatedText = (value) => {
+      const date = new Date(value || 0);
+      return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    };
+    const linkHost = (url) => {
+      try {
+        return new URL(String(url)).hostname;
+      } catch {
+        return "链接不可用";
+      }
+    };
+    async function toggleStep(step) {
+      const plan = taskPlan.value;
+      if (!plan?.todoId || !step?.id || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = `step:${step.id}`;
+      aiCoachUi.value.error = "";
+      try {
+        const result = await actions.toggleAIPlanStep(plan.todoId, step.id);
+        if (!result?.ok) throw new Error(result?.message || "无法更新步骤状态");
+        if (result.plan) aiCoachUi.value.plan = result.plan;
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "步骤状态没有更新，请重试。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    async function openOfficialLink(link) {
+      if (!link?.url || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = `link:${link.url}`;
+      aiCoachUi.value.error = "";
+      try {
+        const result = await actions.openAICoachLink(link.url);
+        if (result?.ok === false) throw new Error(result?.message || "链接未打开");
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "链接未通过安全校验，未打开。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    async function applyDay() {
+      const plan = dayPlan.value;
+      if (!plan?.id || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = "apply";
+      aiCoachUi.value.error = "";
+      aiCoachUi.value.notice = "";
+      try {
+        const result = await actions.applyAIDayPlan(plan.id);
+        if (!result?.ok) throw new Error(result?.message || "今日排程未应用");
+        if (result.plan) aiCoachUi.value.plan = result.plan;
+        aiCoachUi.value.notice = result.message || "已应用今日安排，可在这里撤销本次变更。";
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "今日排程没有应用，原时间保持不变。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    async function undoDay() {
+      const plan = dayPlan.value;
+      if (!plan?.id || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = "undo";
+      aiCoachUi.value.error = "";
+      aiCoachUi.value.notice = "";
+      try {
+        const result = await actions.undoAIDayPlan(plan.id);
+        if (!result?.ok) throw new Error(result?.message || "本次安排未撤销");
+        if (result.plan) aiCoachUi.value.plan = result.plan;
+        aiCoachUi.value.notice = result.message || "本次 AI 安排已撤销。";
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "未能撤销本次安排，请重试。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    const stringSection = (title, rows, className = "") => {
+      const items = coachArray(rows).filter(Boolean);
+      if (!items.length) return null;
+      return createBaseVNode("section", { class: normalizeClass(["coach-section", className]) }, [
+        createBaseVNode("h4", { class: "coach-section-title" }, title),
+        createBaseVNode("ul", { class: "coach-checklist" }, items.map((item) => createBaseVNode("li", null, [
+          createBaseVNode("i", { "aria-hidden": "true" }),
+          createBaseVNode("span", null, String(item))
+        ])))
+      ], 2);
+    };
+    const renderTask = (plan) => {
+      const nextAction = typeof plan.nextAction === "string" ? { title: plan.nextAction } : plan.nextAction || {};
+      const steps = coachArray(plan.steps);
+      const links = coachArray(plan.officialLinks || plan.links);
+      return createBaseVNode("div", { class: "coach-content" }, [
+        plan.summary ? createBaseVNode("p", { class: "coach-summary" }, String(plan.summary)) : null,
+        nextAction.title ? createBaseVNode("section", { class: "coach-next-action" }, [
+          createBaseVNode("div", { class: "coach-next-kicker" }, "现在先做这一步"),
+          createBaseVNode("strong", null, String(nextAction.title)),
+          nextAction.detail ? createBaseVNode("p", null, String(nextAction.detail)) : null,
+          minutesText(nextAction.minutes) ? createBaseVNode("span", { class: "coach-duration" }, minutesText(nextAction.minutes)) : null
+        ]) : null,
+        stringSection("需要你确认", plan.questions, "coach-questions"),
+        stringSection("准备材料", plan.prerequisites || plan.materials),
+        steps.length ? createBaseVNode("section", { class: "coach-section" }, [
+          createBaseVNode("div", { class: "coach-section-heading" }, [
+            createBaseVNode("h4", { class: "coach-section-title" }, "行动步骤"),
+            plan.estimatedMinutes ? createBaseVNode("span", { class: "coach-duration" }, `共约 ${minutesText(plan.estimatedMinutes)}`) : null
+          ]),
+          createBaseVNode("div", { class: "coach-step-list" }, steps.map((step, index) => createBaseVNode("button", {
+            type: "button",
+            class: normalizeClass(["coach-step", { done: step.done, busy: aiCoachUi.value.busy === `step:${step.id}` }]),
+            disabled: Boolean(aiCoachUi.value.busy),
+            onClick: () => toggleStep(step)
+          }, [
+            createBaseVNode("span", { class: "coach-step-index" }, step.done ? "✓" : String(index + 1).padStart(2, "0")),
+            createBaseVNode("span", { class: "coach-step-copy" }, [
+              createBaseVNode("strong", null, String(step.title || `步骤 ${index + 1}`)),
+              step.detail ? createBaseVNode("small", null, String(step.detail)) : null
+            ]),
+            minutesText(step.minutes ?? step.estimatedMinutes) ? createBaseVNode("span", { class: "coach-duration" }, minutesText(step.minutes ?? step.estimatedMinutes)) : null
+          ], 10, ["disabled"])))
+        ]) : null,
+        links.length ? createBaseVNode("section", { class: "coach-section" }, [
+          createBaseVNode("h4", { class: "coach-section-title" }, "建议入口（请核对官网）"),
+          createBaseVNode("div", { class: "coach-source-list" }, links.map((link) => createBaseVNode("button", {
+            type: "button",
+            class: "coach-source-card",
+            disabled: Boolean(aiCoachUi.value.busy) || !link?.url,
+            onClick: () => openOfficialLink(link)
+          }, [
+            createBaseVNode("span", { class: "coach-source-copy" }, [
+              createBaseVNode("strong", null, String(link.label || linkHost(link.url))),
+              link.purpose ? createBaseVNode("small", null, String(link.purpose)) : null,
+              createBaseVNode("code", { class: "coach-source-host" }, String(linkHost(link.url)))
+            ]),
+            createBaseVNode("span", { class: "coach-source-badge" }, "建议链接"),
+            createVNode(_sfc_main$b, { name: "external", size: 14 })
+          ], 8, ["disabled"])))
+        ]) : null,
+        stringSection("注意事项", plan.cautions, "coach-cautions"),
+        stringSection("完成后建议", plan.followUps, "coach-followups")
+      ]);
+    };
+    const renderDay = (plan) => {
+      const items = [...coachArray(plan.preserved), ...coachArray(plan.items)].sort((a, b) => String(a.startTime || "99:99").localeCompare(String(b.startTime || "99:99")));
+      const unscheduled = coachArray(plan.unscheduled);
+      const proposedCount = coachArray(plan.items).length;
+      const lockedCount = coachArray(plan.preserved).length;
+      const reasonText = (reason) => ({
+        fixed_schedule: "已设置固定时间",
+        running: "任务正在计时",
+        repeating: "重复任务保留原规则",
+        no_capacity: "今天剩余可用时间不足"
+      })[reason] || String(reason || "今天剩余时间不足");
+      return createBaseVNode("div", { class: "coach-content" }, [
+        createBaseVNode("div", { class: "coach-day-summary" }, [
+          createBaseVNode("span", null, [createBaseVNode("strong", null, String(proposedCount)), createTextVNode(" 项建议", -1)]),
+          createBaseVNode("span", null, [createBaseVNode("strong", null, String(lockedCount)), createTextVNode(" 项固定", -1)]),
+          createBaseVNode("span", null, [createBaseVNode("strong", null, String(unscheduled.length)), createTextVNode(" 项待处理", -1)]),
+          plan.appliedAt && !plan.undoneAt ? createBaseVNode("em", { class: "is-applied" }, "已应用") : plan.undoneAt ? createBaseVNode("em", null, "已撤销") : createBaseVNode("em", null, "尚未修改待办")
+        ]),
+        items.length ? createBaseVNode("section", { class: "coach-section" }, [
+          createBaseVNode("h4", { class: "coach-section-title" }, "今日时间轨道"),
+          createBaseVNode("div", { class: "coach-time-rail" }, items.map((item) => createBaseVNode("div", {
+            class: normalizeClass(["coach-slot", { "is-locked": item.locked, "is-proposed": !item.locked }])
+          }, [
+            createBaseVNode("div", { class: "coach-slot-time" }, [
+              createBaseVNode("strong", null, String(item.startTime || "--:--")),
+              createBaseVNode("span", null, String(item.endTime || "--:--"))
+            ]),
+            createBaseVNode("i", { "aria-hidden": "true" }),
+            createBaseVNode("div", { class: "coach-slot-copy" }, [
+              createBaseVNode("strong", null, todoTitle(item.todoId)),
+              item.reason ? createBaseVNode("small", null, reasonText(item.reason)) : null
+            ]),
+            item.locked ? createBaseVNode("span", { class: "coach-lock" }, [createVNode(_sfc_main$b, { name: "lock", size: 12 }), createTextVNode(" 已锁定", -1)]) : createBaseVNode("span", { class: "coach-proposed" }, "AI 建议")
+          ], 2)))
+        ]) : createBaseVNode("div", { class: "coach-empty" }, "今天没有可排入时间轴的待办。"),
+        unscheduled.length ? createBaseVNode("section", { class: "coach-section coach-unscheduled" }, [
+          createBaseVNode("h4", { class: "coach-section-title" }, "暂未排入"),
+          createBaseVNode("div", null, unscheduled.map((item) => createBaseVNode("div", { class: "coach-unscheduled-row" }, [
+            createBaseVNode("strong", null, todoTitle(item.todoId)),
+            createBaseVNode("span", null, reasonText(item.reason))
+          ])))
+        ]) : null,
+        stringSection("排程提示", plan.warnings, "coach-cautions")
+      ]);
+    };
+    return () => {
+      if (!aiCoachUi.value.open) return createCommentVNode("", true);
+      const isDay = aiCoachUi.value.mode === "day";
+      const plan = isDay ? dayPlan.value : taskPlan.value;
+      const title = isDay ? `${aiCoachUi.value.date} · 今日安排` : currentTodo.value?.title || "任务拆解";
+      const applied = Boolean(isDay && plan?.appliedAt && !plan?.undoneAt);
+      return createBaseVNode("div", {
+        class: "ai-coach-mask",
+        onClick: (event) => event.target === event.currentTarget && closeAICoach()
+      }, [
+        createBaseVNode("aside", {
+          class: normalizeClass(["ai-coach-drawer", { "is-schedule": isDay }]),
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": isDay ? "AI 今日排程" : "AI 任务拆解"
+        }, [
+          createBaseVNode("header", { class: "coach-head" }, [
+            createBaseVNode("div", { class: "coach-head-mark" }, [createVNode(_sfc_main$b, { name: "route", size: 18 })]),
+            createBaseVNode("div", { class: "coach-head-copy" }, [
+              createBaseVNode("div", { class: "coach-eyebrow" }, `AI 任务教练 · ${isDay ? "时间草案" : "行动指南"}`),
+              createBaseVNode("h3", null, title),
+              plan?.generatedAt || plan?.createdAt ? createBaseVNode("small", null, `生成于 ${generatedText(plan.generatedAt || plan.createdAt)}`) : null
+            ]),
+            createBaseVNode("button", { type: "button", class: "coach-close", title: "关闭", onClick: closeAICoach }, [createVNode(_sfc_main$b, { name: "x", size: 17 })])
+          ]),
+          aiCoachUi.value.busy ? createBaseVNode("div", { class: "coach-status is-busy", role: "status" }, [
+            createBaseVNode("i", { "aria-hidden": "true" }),
+            createBaseVNode("span", null, aiCoachUi.value.busy.startsWith("step:") ? "正在更新步骤…" : aiCoachUi.value.busy.startsWith("link:") ? "正在安全打开链接…" : aiCoachUi.value.busy === "apply" ? "正在应用今日安排…" : aiCoachUi.value.busy === "undo" ? "正在撤销本次安排…" : "正在核对任务、资料和今天的空档…")
+          ]) : null,
+          aiCoachUi.value.error ? createBaseVNode("div", { class: "coach-status is-error", role: "alert" }, aiCoachUi.value.error) : null,
+          aiCoachUi.value.notice ? createBaseVNode("div", { class: "coach-status is-notice", role: "status" }, aiCoachUi.value.notice) : null,
+          createBaseVNode("div", { class: "coach-scroll" }, [
+            plan ? isDay ? renderDay(plan) : renderTask(plan) : !aiCoachUi.value.busy ? createBaseVNode("div", { class: "coach-empty" }, [
+              createVNode(_sfc_main$b, { name: "route", size: 24 }),
+              createBaseVNode("strong", null, aiCoachEnabled() ? "还没有生成草案" : "AI 任务教练尚未连接"),
+              createBaseVNode("span", null, aiCoachEnabled() ? "生成后会先展示预览，不会直接改变待办时间。" : "待办仍可正常使用，请先在设置中完成连接。")
+            ]) : null
+          ]),
+          createBaseVNode("footer", { class: "coach-footer" }, [
+            createBaseVNode("span", { class: "coach-footer-note" }, isDay ? "应用前可完整预览，应用后仍可撤销" : "AI 内容可能出错，重要信息请以官方页面为准"),
+            aiCoachEnabled() ? createBaseVNode("button", {
+              type: "button",
+              class: "ghost coach-rerun",
+              disabled: Boolean(aiCoachUi.value.busy) || applied,
+              onClick: () => isDay ? runDayCoach(aiCoachUi.value.date) : runTaskCoach(aiCoachUi.value.todoId)
+            }, [createVNode(_sfc_main$b, { name: "refresh", size: 13 }), createTextVNode(plan ? " 重新生成" : " 生成草案", -1)], 8, ["disabled"]) : null,
+            isDay && plan ? createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass([applied ? "ghost" : "primary", "coach-apply"]),
+              disabled: Boolean(aiCoachUi.value.busy) || Boolean(plan.undoneAt),
+              onClick: applied ? undoDay : applyDay
+            }, [createVNode(_sfc_main$b, { name: applied ? "undo" : "check", size: 13 }), createTextVNode(applied ? " 撤销本次安排" : ` 应用 ${coachArray(plan.items).filter((item) => !item.locked).length} 项安排`, -1)], 10, ["disabled"]) : createBaseVNode("button", { type: "button", class: "primary", disabled: Boolean(aiCoachUi.value.busy), onClick: closeAICoach }, "完成", 8, ["disabled"])
+          ])
+        ], 10, ["aria-label"])
+      ]);
+    };
+  }
+};
+
+const AI_COACH_DEFAULT_GATEWAY = "http://127.0.0.1:18789/v1/responses";
+const AI_COACH_DEFAULT_CONFIG = {
+  enabled: false,
+  gatewayUrl: AI_COACH_DEFAULT_GATEWAY,
+  agentId: "timemaster-coach",
+  includeNote: false,
+  autoPlanNewTodos: false,
+  workdayStart: "09:00",
+  workdayEnd: "18:00",
+  lunchStart: "12:00",
+  lunchEnd: "13:30",
+  bufferMinutes: 10
+};
+function normalizeAICoachConfig(result) {
+  return { ...AI_COACH_DEFAULT_CONFIG, ...(result?.config || result || {}) };
+}
+const AICoachSettings = {
+  __name: "AICoachSettings",
+  setup() {
+    const draft = ref(normalizeAICoachConfig(state.aiCoachConfig));
+    const token = ref("");
+    const tokenConfigured = ref(Boolean(state.aiCoachConfig?.tokenConfigured));
+    const loading = ref(true);
+    const busy = ref("");
+    const dirty = ref(false);
+    const status = ref({ kind: "", text: "" });
+    const update = (key, value) => {
+      draft.value = { ...draft.value, [key]: value };
+      dirty.value = true;
+      status.value = { kind: "", text: "" };
+    };
+    async function load() {
+      loading.value = true;
+      try {
+        const result = await actions.getAICoachConfig();
+        if (result?.ok === false) throw new Error(result.message || "无法读取 AI 配置");
+        draft.value = normalizeAICoachConfig(result);
+        tokenConfigured.value = Boolean(result?.tokenConfigured ?? result?.config?.tokenConfigured ?? state.aiCoachConfig?.tokenConfigured);
+        state.aiCoachConfig = { ...draft.value, tokenConfigured: tokenConfigured.value };
+        if (result?.tokenError) status.value = { kind: "error", text: String(result.tokenError) };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "无法读取 AI 任务教练配置。") };
+      } finally {
+        loading.value = false;
+      }
+    }
+    async function save() {
+      if (busy.value) return;
+      busy.value = "save";
+      status.value = { kind: "hint", text: "正在保存 AI 任务教练配置…" };
+      try {
+        const payload = { ...draft.value };
+        if (token.value.trim()) payload.token = token.value.trim();
+        const result = await actions.saveAICoachConfig(payload);
+        if (!result?.ok) throw new Error(result?.message || "配置未保存");
+        draft.value = normalizeAICoachConfig(result?.config || draft.value);
+        tokenConfigured.value = Boolean(result?.tokenConfigured ?? (tokenConfigured.value || token.value.trim()));
+        token.value = "";
+        dirty.value = false;
+        state.aiCoachConfig = { ...draft.value, tokenConfigured: tokenConfigured.value };
+        status.value = { kind: "success", text: result?.message || "AI 任务教练配置已保存。" };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "AI 任务教练配置未保存。") };
+      } finally {
+        busy.value = "";
+      }
+    }
+    async function probe() {
+      if (busy.value) return;
+      if (dirty.value || token.value.trim()) {
+        status.value = { kind: "error", text: "请先保存当前配置，再检查连接。" };
+        return;
+      }
+      busy.value = "probe";
+      status.value = { kind: "hint", text: "正在检查本机 OpenClaw…" };
+      try {
+        const result = await actions.probeAICoach();
+        if (!result?.ok) throw new Error(result?.message || "未连接到 OpenClaw");
+        status.value = { kind: "success", text: result?.message || "OpenClaw AI 接口已连接。" };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "未检测到可用的 OpenClaw AI 接口。") };
+      } finally {
+        busy.value = "";
+      }
+    }
+    onMounted(load);
+    const switchRow = (title, description, key) => createBaseVNode("div", { class: "coach-settings-switch" }, [
+      createBaseVNode("div", null, [createBaseVNode("div", { class: "k" }, title), createBaseVNode("div", { class: "d" }, description)]),
+      createBaseVNode("button", {
+        type: "button",
+        class: normalizeClass(["toggle", { on: draft.value[key] }]),
+        role: "switch",
+        "aria-checked": Boolean(draft.value[key]),
+        disabled: Boolean(busy.value),
+        onClick: () => update(key, !draft.value[key])
+      }, null, 10, ["aria-checked", "disabled"])
+    ]);
+    const textField = (label, key, options = {}) => createBaseVNode("div", { class: normalizeClass(["field coach-settings-field", { full: options.full }]) }, [
+      createBaseVNode("label", { for: `coach-${key}` }, label),
+      createBaseVNode("input", {
+        id: `coach-${key}`,
+        type: options.type || "text",
+        value: draft.value[key],
+        min: options.min,
+        max: options.max,
+        placeholder: options.placeholder,
+        disabled: Boolean(busy.value),
+        autocomplete: "off",
+        spellcheck: "false",
+        onInput: (event) => update(key, options.type === "number" ? Number(event.target.value) : event.target.value)
+      }, null, 40, ["value", "disabled"]),
+      options.hint ? createBaseVNode("small", null, options.hint) : null
+    ], 2);
+    return () => createBaseVNode("section", {
+      class: normalizeClass(["ai-coach-settings-card", { enabled: draft.value.enabled }]),
+      "aria-busy": Boolean(busy.value)
+    }, [
+      createBaseVNode("i", { class: "coach-settings-rail", "aria-hidden": "true" }),
+      createBaseVNode("div", { class: "coach-settings-head" }, [
+        createBaseVNode("span", { class: "coach-settings-mark" }, [createVNode(_sfc_main$b, { name: "route", size: 17 })]),
+        createBaseVNode("div", { class: "coach-settings-title" }, [
+          createBaseVNode("strong", null, "AI 任务教练"),
+          createBaseVNode("small", null, "把模糊待办变成材料、步骤和可撤销的今日安排")
+        ]),
+        createBaseVNode("span", { class: normalizeClass(["coach-settings-badge", { ready: tokenConfigured.value }]) }, tokenConfigured.value ? "凭据已保存" : "待配置", 2),
+        createBaseVNode("button", {
+          type: "button",
+          class: normalizeClass(["toggle", { on: draft.value.enabled }]),
+          role: "switch",
+          "aria-label": "启用 AI 任务教练",
+          "aria-checked": Boolean(draft.value.enabled),
+          disabled: Boolean(busy.value),
+          onClick: () => update("enabled", !draft.value.enabled)
+        }, null, 10, ["aria-checked", "disabled"])
+      ]),
+      loading.value ? createBaseVNode("div", { class: "coach-settings-loading" }, "正在读取配置…") : createBaseVNode("div", { class: "coach-settings-body" }, [
+        createBaseVNode("div", { class: "coach-settings-privacy" }, [
+          createVNode(_sfc_main$b, { name: "shield", size: 15 }),
+          createBaseVNode("p", null, "时间大师只把任务标题、日期、时间、优先级和四象限交给本机 OpenClaw。备注默认不发送；OpenClaw 使用的模型仍可能是远程服务。费用和专注记录不会随请求发送。")
+        ]),
+        createBaseVNode("div", { class: "coach-settings-grid" }, [
+          textField("Gateway /v1/responses", "gatewayUrl", { full: true, placeholder: AI_COACH_DEFAULT_GATEWAY, hint: "仅接受 127.0.0.1 或 localhost" }),
+          createBaseVNode("div", { class: "field coach-settings-field full" }, [
+            createBaseVNode("label", { for: "coach-token" }, "Gateway Token"),
+            createBaseVNode("input", {
+              id: "coach-token",
+              type: "password",
+              value: token.value,
+              placeholder: tokenConfigured.value ? "留空表示不更改" : "输入 Gateway Token",
+              maxlength: "4096",
+              autocomplete: "new-password",
+              disabled: Boolean(busy.value),
+              onInput: (event) => {
+                token.value = event.target.value;
+                status.value = { kind: "", text: "" };
+              }
+            }, null, 40, ["value", "placeholder", "disabled"]),
+            createBaseVNode("small", { class: tokenConfigured.value ? "is-secure" : "" }, tokenConfigured.value ? "凭据副本已加密保存，页面不会回显" : "保存时由系统安全存储凭据")
+          ]),
+          textField("独立 Agent ID", "agentId", { full: true, placeholder: "timemaster-coach", hint: "建议使用仅具备资料检索能力的独立 Agent" })
+        ]),
+        createBaseVNode("div", { class: "coach-settings-options" }, [
+          switchRow("发送待办备注", "默认关闭；开启后备注会随请求交给 OpenClaw", "includeNote"),
+          switchRow("新待办自动准备拆解", "保存时仍显示明确开关，可随时取消", "autoPlanNewTodos")
+        ]),
+        createBaseVNode("div", { class: "coach-settings-time" }, [
+          createBaseVNode("div", { class: "coach-settings-time-title" }, [createBaseVNode("strong", null, "默认可安排时间"), createBaseVNode("small", null, "AI 不会覆盖已经设置的固定时间")]),
+          createBaseVNode("div", { class: "coach-settings-time-grid" }, [
+            textField("工作开始", "workdayStart", { type: "time" }),
+            textField("工作结束", "workdayEnd", { type: "time" }),
+            textField("午休开始", "lunchStart", { type: "time" }),
+            textField("午休结束", "lunchEnd", { type: "time" }),
+            textField("任务缓冲（分钟）", "bufferMinutes", { type: "number", min: 0, max: 60, full: true })
+          ])
+        ]),
+        createBaseVNode("div", { class: "coach-settings-actions" }, [
+          createBaseVNode("button", { type: "button", class: "primary", disabled: Boolean(busy.value) || !dirty.value && !token.value.trim(), onClick: save }, busy.value === "save" ? "保存中…" : "保存配置", 8, ["disabled"]),
+          createBaseVNode("button", { type: "button", class: "ghost", disabled: Boolean(busy.value) || !draft.value.enabled, onClick: probe }, busy.value === "probe" ? "检查中…" : "检查连接", 8, ["disabled"])
+        ]),
+        createBaseVNode("div", { class: normalizeClass(["coach-settings-status", status.value.kind]) , role: status.value.kind === "error" ? "alert" : "status", "aria-live": "polite" }, status.value.text || " ", 10, ["role"])
+      ])
+    ], 10, ["aria-busy"]);
   }
 };
 const REMOTE_REMINDER_DEFAULT_GATEWAY = "http://127.0.0.1:18789/hooks/agent";
@@ -3394,6 +3974,7 @@ const _sfc_main$2 = {
               }), 128))
             ], 40, _hoisted_10)
           ]),
+          createVNode(AICoachSettings),
           createVNode(RemoteReminderSettings),
           _cache[21] || (_cache[21] = createBaseVNode("h3", { style: { "margin-top": "18px" } }, "关于", -1)),
           info.value ? (openBlock(), createElementBlock("div", _hoisted_12, [
@@ -3511,7 +4092,8 @@ const _sfc_main = {
       const tag = e.target?.tagName;
       if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag) || e.target?.isContentEditable || e.target?.getAttribute?.("role")) return;
       if (e.key === "Escape") {
-        if (state.editing) actions.closeEditor();
+        if (aiCoachUi.value.open) closeAICoach();
+        else if (state.editing) actions.closeEditor();
         else if (state.settingsOpen) state.settingsOpen = false;
         return;
       }
@@ -3563,6 +4145,7 @@ const _sfc_main = {
         ]),
         unref(state).editing ? (openBlock(), createBlock(_sfc_main$3, { key: 0 })) : createCommentVNode("", true),
         unref(state).settingsOpen ? (openBlock(), createBlock(_sfc_main$2, { key: 1 })) : createCommentVNode("", true),
+        createVNode(AICoachDrawer),
         createVNode(AppDialog)
       ]);
     };

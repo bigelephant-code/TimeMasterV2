@@ -25,6 +25,22 @@ const {
   dueRemoteReminders
 } = require("./remote-reminders.js");
 const {
+  DEFAULT_AI_TASK_COACH_ENDPOINT,
+  TASK_PLAN_TOOL_NAME,
+  DAY_PLAN_TOOL_NAME,
+  normalizeAiTaskCoachConfig,
+  taskSourceHash,
+  normalizeTaskPlan,
+  buildTaskPlanRequest,
+  buildDayPlanRequest,
+  requestOpenClawPlan,
+  createDeterministicDayPlan,
+  scheduleSignature,
+  applyDayPlan,
+  undoDayPlan,
+  normalizeAiTaskCoachState
+} = require("./ai-task-coach.js");
+const {
   defaultExpenseCategories,
   migrateExpenseCategories,
   categoriesOf,
@@ -140,6 +156,7 @@ let recoveredDataFromBackup = false;
 let remoteReminderOutbox = normalizeRemoteReminderOutbox();
 let remoteReminderDrainPromise = null;
 let lastRemoteReminderTestAt = 0;
+const aiTaskCoachInFlight = /* @__PURE__ */ new Map();
 const REMOTE_REMINDER_TEST_COOLDOWN_MS = 15 * 1e3;
 const MAX_EXPENSE_ENTRIES = 2e4;
 let data = {
@@ -149,7 +166,8 @@ let data = {
   goals: [],
   expenses: [],
   focusSessions: [],
-  focusTimer: defaultFocusTimer()
+  focusTimer: defaultFocusTimer(),
+  aiTaskCoach: normalizeAiTaskCoachState()
 };
 let settings = defaultSettings();
 function defaultFocusTimer(durationMinutes = DEFAULT_FOCUS_MINUTES) {
@@ -223,6 +241,16 @@ function defaultSettings() {
       target: "",
       accountId: "",
       includeNote: false
+    },
+    aiTaskCoach: {
+      enabled: false,
+      endpoint: DEFAULT_AI_TASK_COACH_ENDPOINT,
+      agentId: "timemaster-coach",
+      includeNote: false,
+      autoPlanNewTodos: false,
+      workday: { start: "09:00", end: "18:00" },
+      lunch: { start: "12:00", end: "13:30" },
+      bufferMinutes: 10
     },
     window: { width: 1040, height: 700, x: null, y: null },
     widget: {
@@ -333,7 +361,8 @@ function initStore() {
     goals: [],
     expenses: [],
     focusSessions: [],
-    focusTimer: defaultFocusTimer()
+    focusTimer: defaultFocusTimer(),
+    aiTaskCoach: normalizeAiTaskCoachState()
   };
   const sourceDataVersion = storedDataVersion(data);
   if (sourceDataVersion > DATA_VERSION) {
@@ -351,6 +380,9 @@ function initStore() {
   const normalizedFocusTimer = normalizeFocusTimer(data.focusTimer);
   if (JSON.stringify(normalizedFocusTimer) !== JSON.stringify(data.focusTimer)) scheduleFlush();
   data.focusTimer = normalizedFocusTimer;
+  const normalizedAiTaskCoachState = normalizeAiTaskCoachState(data.aiTaskCoach);
+  if (JSON.stringify(normalizedAiTaskCoachState) !== JSON.stringify(data.aiTaskCoach)) scheduleFlush();
+  data.aiTaskCoach = normalizedAiTaskCoachState;
   migrateTodoTimes();
   migrateTodoRolloverHistories();
   migrateTodoCompletionHistories();
@@ -371,6 +403,17 @@ function initStore() {
     target: normalizedRemoteReminder.target || "",
     accountId: normalizedRemoteReminder.accountId || "",
     includeNote: normalizedRemoteReminder.includeNote
+  };
+  const normalizedAiTaskCoach = normalizeAiTaskCoachConfig(settings.aiTaskCoach);
+  settings.aiTaskCoach = {
+    enabled: normalizedAiTaskCoach.enabled,
+    endpoint: normalizedAiTaskCoach.endpoint || DEFAULT_AI_TASK_COACH_ENDPOINT,
+    agentId: normalizedAiTaskCoach.agentId,
+    includeNote: normalizedAiTaskCoach.includeNote,
+    autoPlanNewTodos: normalizedAiTaskCoach.autoPlanNewTodos,
+    workday: normalizedAiTaskCoach.workday,
+    lunch: normalizedAiTaskCoach.lunch,
+    bufferMinutes: normalizedAiTaskCoach.bufferMinutes
   };
   remoteReminderOutbox = pruneRemoteReminderOutbox(readJson(remoteReminderOutboxFile, null), {
     now: Date.now(),
@@ -430,8 +473,14 @@ function getSettings() {
   return settings;
 }
 function rendererSettings() {
-  const { remoteReminder: _remoteReminder, ...visible } = settings;
-  return visible;
+  const { remoteReminder: _remoteReminder, aiTaskCoach: _aiTaskCoach, ...visible } = settings;
+  return {
+    ...visible,
+    aiTaskCoach: {
+      enabled: settings.aiTaskCoach?.enabled === true,
+      autoPlanNewTodos: settings.aiTaskCoach?.autoPlanNewTodos === true
+    }
+  };
 }
 function patchSettings(patch) {
   settings = {
@@ -440,7 +489,8 @@ function patchSettings(patch) {
     window: { ...settings.window, ...patch.window || {} },
     widget: { ...settings.widget, ...patch.widget || {} },
     countdown: { ...settings.countdown, ...patch.countdown || {} },
-    remoteReminder: { ...settings.remoteReminder, ...patch.remoteReminder || {} }
+    remoteReminder: { ...settings.remoteReminder, ...patch.remoteReminder || {} },
+    aiTaskCoach: { ...settings.aiTaskCoach, ...patch.aiTaskCoach || {} }
   };
   scheduleFlush();
   return settings;
@@ -456,6 +506,11 @@ function remoteReminderSecretsRaw() {
   } catch {
     throw new Error("远程提醒密钥文件无法读取，请检查数据目录中的 secrets.json。");
   }
+}
+function secretTokensMatch(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""), "utf8");
+  const rightBuffer = Buffer.from(String(right || ""), "utf8");
+  return leftBuffer.length > 0 && leftBuffer.length === rightBuffer.length && node_crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 function prepareRemoteReminderSecrets(token) {
   const value = String(token || "");
@@ -519,8 +574,12 @@ function saveRemoteReminderConfig(input = {}) {
   if (rawToken && (rawToken.length > 4096 || /[\x00-\x1f\x7f]/.test(rawToken))) {
     throw new Error("Hook Token 格式无效或长度超过限制。");
   }
+  const effectiveRemoteToken = rawToken || readRemoteReminderToken();
+  if (secretTokensMatch(effectiveRemoteToken, readAiTaskCoachToken())) {
+    throw new Error("Hook Token 不能与 AI Gateway Token 相同，请为提醒通道使用独立凭据。");
+  }
   const preparedSecrets = rawToken ? prepareRemoteReminderSecrets(rawToken) : null;
-  if (input.enabled === true && !preparedSecrets && !readRemoteReminderToken()) {
+  if (input.enabled === true && !effectiveRemoteToken) {
     throw new Error("请填写 OpenClaw Hook Token 后再启用远程提醒。");
   }
   const nextRemoteReminder = {
@@ -569,7 +628,7 @@ function saveRemoteReminderConfig(input = {}) {
   return { ok: true, message: "配置已安全保存。", ...publicRemoteReminderConfig() };
 }
 function ensureMainWindowSender(event) {
-  if (windowOf(event) !== getMainWindow()) throw new Error("远程提醒设置只能从时间大师主窗口操作。");
+  if (windowOf(event) !== getMainWindow()) throw new Error("该操作只能从时间大师主窗口发起。");
 }
 function remoteReminderConfigWithToken() {
   const config = normalizeRemoteReminderConfig({ ...settings.remoteReminder, token: readRemoteReminderToken() });
@@ -636,6 +695,376 @@ async function sendRemoteReminderTest() {
   }
   const detail = result.status ? `HTTP ${result.status}` : result.reason || "网络错误";
   throw new Error(`OpenClaw 未受理测试提醒：${detail}`);
+}
+function prepareAiTaskCoachSecrets(token) {
+  const value = String(token || "");
+  if (!value) return null;
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法安全保存 Gateway Token。");
+  const current = remoteReminderSecretsRaw();
+  return {
+    ...current,
+    version: 1,
+    aiTaskCoachGatewayToken: electron.safeStorage.encryptString(value).toString("base64")
+  };
+}
+function readAiTaskCoachToken() {
+  if (!secretsFile) return "";
+  const secrets = remoteReminderSecretsRaw();
+  const encrypted = typeof secrets?.aiTaskCoachGatewayToken === "string" ? secrets.aiTaskCoachGatewayToken : "";
+  if (!encrypted) return "";
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法读取 Gateway Token。");
+  try {
+    return electron.safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+  } catch {
+    throw new Error("已保存的 Gateway Token 无法解密，请重新输入并保存。");
+  }
+}
+function publicAiTaskCoachConfig() {
+  const normalized = normalizeAiTaskCoachConfig(settings.aiTaskCoach);
+  let tokenConfigured = false;
+  let tokenError = null;
+  try {
+    tokenConfigured = !!readAiTaskCoachToken();
+  } catch (error) {
+    tokenError = String(error?.message || error);
+  }
+  return {
+    config: {
+      enabled: normalized.enabled,
+      gatewayUrl: normalized.endpoint || DEFAULT_AI_TASK_COACH_ENDPOINT,
+      endpoint: normalized.endpoint || DEFAULT_AI_TASK_COACH_ENDPOINT,
+      agentId: normalized.agentId,
+      includeNote: normalized.includeNote,
+      autoPlanNewTodos: normalized.autoPlanNewTodos,
+      workday: normalized.workday,
+      lunch: normalized.lunch,
+      workdayStart: normalized.workday.start,
+      workdayEnd: normalized.workday.end,
+      lunchStart: normalized.lunch.start,
+      lunchEnd: normalized.lunch.end,
+      bufferMinutes: normalized.bufferMinutes
+    },
+    tokenConfigured,
+    tokenError
+  };
+}
+function saveAiTaskCoachConfig(input = {}) {
+  const rawToken = typeof input.token === "string" ? input.token.trim() : "";
+  const rawAgentId = String(input.agentId || "timemaster-coach").trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(rawAgentId)) {
+    throw new Error("Agent ID 只能包含字母、数字、点、下划线或短横线，且不超过 64 个字符。");
+  }
+  if (rawToken && (rawToken.length > 4096 || /[\x00-\x1f\x7f]/.test(rawToken))) {
+    throw new Error("Gateway Token 格式无效或长度超过限制。");
+  }
+  const effectiveAiToken = rawToken || readAiTaskCoachToken();
+  if (secretTokensMatch(effectiveAiToken, readRemoteReminderToken())) {
+    throw new Error("AI Gateway Token 不能与 Hook Token 相同，请为任务教练使用独立凭据。");
+  }
+  const normalized = normalizeAiTaskCoachConfig({
+    enabled: input.enabled,
+    endpoint: input.gatewayUrl ?? input.endpoint,
+    agentId: rawAgentId,
+    includeNote: input.includeNote,
+    autoPlanNewTodos: input.autoPlanNewTodos,
+    workday: {
+      start: input.workdayStart ?? input.workday?.start,
+      end: input.workdayEnd ?? input.workday?.end
+    },
+    lunch: {
+      start: input.lunchStart ?? input.lunch?.start,
+      end: input.lunchEnd ?? input.lunch?.end
+    },
+    bufferMinutes: input.bufferMinutes
+  });
+  if (!normalized.endpoint) throw new Error("Gateway 地址必须是本机 http://127.0.0.1、localhost 或 [::1] 的 /v1/responses。");
+  const preparedSecrets = rawToken ? prepareAiTaskCoachSecrets(rawToken) : null;
+  if (input.enabled === true && !effectiveAiToken) {
+    throw new Error("请填写独立的 OpenClaw Gateway Token 后再启用 AI 任务教练。");
+  }
+  const nextAiTaskCoach = {
+    enabled: input.enabled === true,
+    endpoint: normalized.endpoint,
+    agentId: normalized.agentId,
+    includeNote: normalized.includeNote,
+    autoPlanNewTodos: normalized.autoPlanNewTodos,
+    workday: normalized.workday,
+    lunch: normalized.lunch,
+    bufferMinutes: normalized.bufferMinutes
+  };
+  const previousSettings = settings;
+  const previousSecrets = preparedSecrets ? remoteReminderSecretsRaw() : null;
+  try {
+    writeJsonAtomic(settingsFile, { ...settings, aiTaskCoach: nextAiTaskCoach });
+    if (preparedSecrets) writeJsonAtomic(secretsFile, preparedSecrets);
+  } catch (error) {
+    try {
+      writeJsonAtomic(settingsFile, previousSettings);
+      if (preparedSecrets) writeJsonAtomic(secretsFile, previousSecrets);
+    } catch (rollbackError) {
+      console.error("[ai-task-coach] 配置保存回滚失败：", String(rollbackError?.message || rollbackError));
+    }
+    throw error;
+  }
+  settings = { ...settings, aiTaskCoach: nextAiTaskCoach };
+  return { ok: true, message: "AI 任务教练配置已安全保存。", ...publicAiTaskCoachConfig() };
+}
+function aiTaskCoachConfigWithToken() {
+  const config = normalizeAiTaskCoachConfig(settings.aiTaskCoach);
+  const token = readAiTaskCoachToken();
+  if (!config.enabled) throw new Error("请先在设置中启用并保存 AI 任务教练。");
+  if (!config.endpoint) throw new Error("Gateway Responses 地址无效。");
+  if (!token) throw new Error("尚未保存独立的 OpenClaw Gateway Token。");
+  return { config, token };
+}
+async function readBoundedResponseText(response, maxBytes = 128 * 1024) {
+  const declared = Number(response?.headers?.get?.("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error("OpenClaw 响应过大，已停止读取。");
+  if (!response?.body?.getReader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) throw new Error("OpenClaw 响应过大，已停止读取。");
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error("OpenClaw 响应过大，已停止读取。");
+      }
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks, total).toString("utf8");
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+async function probeAiTaskCoachConnection() {
+  const { config, token } = aiTaskCoachConfigWithToken();
+  const modelsUrl = new URL(config.endpoint);
+  modelsUrl.pathname = "/v1/models";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20 * 1e3);
+  try {
+    const response = await fetch(modelsUrl, {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}` },
+      redirect: "error",
+      signal: controller.signal
+    });
+    const text = await readBoundedResponseText(response);
+    if (response.status === 401 || response.status === 403) throw new Error("Gateway Token 未通过认证，请重新保存。");
+    if (response.status === 404) throw new Error("OpenClaw 尚未启用 Responses HTTP 接口，请按配置指南开启。");
+    if (!response.ok) throw new Error(`OpenClaw 返回 HTTP ${response.status}，连接检查失败。`);
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error("OpenClaw /v1/models 返回了无法识别的内容。");
+    }
+    const ids = Array.isArray(payload?.data) ? payload.data.map((item) => String(item?.id || "")) : [];
+    const expected = `openclaw/${config.agentId}`;
+    if (!ids.includes(expected) && !ids.includes(`openclaw:${config.agentId}`)) {
+      throw new Error(`已连接 Gateway，但未找到专用 Agent「${config.agentId}」。`);
+    }
+    return { ok: true, message: `OpenClaw Responses 已认证，专用 Agent「${config.agentId}」可用。` };
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("连接 OpenClaw 超时，请确认 Gateway 正在运行。");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+function rendererAiTaskCoachState() {
+  const normalized = normalizeAiTaskCoachState(data.aiTaskCoach);
+  const todosById = new Map(data.todos.map((todo) => [todo.id, todo]));
+  const taskPlans = /* @__PURE__ */ Object.create(null);
+  for (const [todoId, plan] of Object.entries(normalized.taskPlans)) {
+    const todo = todosById.get(todoId);
+    taskPlans[todoId] = {
+      ...plan,
+      stale: !todo || plan.sourceHash !== taskSourceHash(todo, { includeNote: settings.aiTaskCoach.includeNote })
+    };
+  }
+  const dayPlans = normalized.dayPlans.map((plan) => {
+    const stale = plan.status === "draft" && (plan.sourceSchedules || []).some((source) => {
+      const todo = todosById.get(source.todoId);
+      if (!todo) return true;
+      if (source.signature) return source.signature !== scheduleSignature(todo);
+      return Number(source.updatedAt) !== Number(todo.updatedAt)
+        || (source.date ?? null) !== (todo.date ?? null)
+        || (source.startTime ?? null) !== (todo.startTime ?? null)
+        || (source.endTime ?? source.time ?? null) !== (todo.endTime ?? todo.time ?? null);
+    });
+    return stale ? { ...plan, status: "stale" } : plan;
+  });
+  return { version: 1, taskPlans, dayPlans };
+}
+function occupiedScheduleFor(todo) {
+  return {
+    date: todo.date || null,
+    startTime: taskStartTime(todo),
+    endTime: taskEndTime(todo)
+  };
+}
+async function withAiTaskCoachRun(key, operation) {
+  const existing = aiTaskCoachInFlight.get(key);
+  if (existing) return existing;
+  const running = Promise.resolve().then(operation).finally(() => aiTaskCoachInFlight.delete(key));
+  aiTaskCoachInFlight.set(key, running);
+  return running;
+}
+async function planTodoWithAi(todoId) {
+  return withAiTaskCoachRun(`task:${todoId}`, async () => {
+    const { config, token } = aiTaskCoachConfigWithToken();
+    const todo = data.todos.find((row) => row.id === todoId);
+    if (!todo || todo.done) throw new Error("这条待办已不存在或已经完成，无法生成拆解。");
+    const sourceHash = taskSourceHash(todo, { includeNote: config.includeNote });
+    const occupied = data.todos.filter((row) => row.id !== todo.id && !row.done && row.date === todo.date && taskHasTime(row)).map(occupiedScheduleFor);
+    const body = buildTaskPlanRequest(todo, {
+      today: localYmd$1(),
+      now: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
+      occupied
+    }, config);
+    const response = await requestOpenClawPlan({
+      endpoint: config.endpoint,
+      token,
+      agentId: config.agentId,
+      body,
+      expectedTool: TASK_PLAN_TOOL_NAME
+    });
+    const liveTodo = data.todos.find((row) => row.id === todoId);
+    if (!liveTodo || taskSourceHash(liveTodo, { includeNote: config.includeNote }) !== sourceHash) {
+      throw new Error("AI 生成期间待办内容已经变化，本次草案未保存，请重新生成。");
+    }
+    const plan = normalizeTaskPlan(response.arguments, { todoId, sourceHash, generatedAt: Date.now() });
+    data.aiTaskCoach = normalizeAiTaskCoachState({
+      ...data.aiTaskCoach,
+      taskPlans: { ...data.aiTaskCoach.taskPlans, [todoId]: plan }
+    });
+    flushNow();
+    return { ok: true, plan, message: "任务拆解草案已生成，未自动修改待办时间。" };
+  });
+}
+function todosForAiDay(date) {
+  return data.todos.filter((todo) => !todo.done && (todo.date === date || !todo.date && [1, 2].includes(Number(todo.quadrant))));
+}
+async function planDayWithAi(dateInput) {
+  const date = normalizeYmd(dateInput);
+  if (!date) throw new Error("排程日期无效。");
+  return withAiTaskCoachRun(`day:${date}`, async () => {
+    const { config, token } = aiTaskCoachConfigWithToken();
+    const applied = data.aiTaskCoach.dayPlans.find((plan) => plan.date === date && plan.status === "applied" && !plan.undoneAt);
+    if (applied) throw new Error("这一天已有已应用的 AI 安排。请先撤销本次安排，再重新生成草案。");
+    // Freeze the planning snapshot. If the user edits any included task while
+    // OpenClaw is working, applyDayPlan will reject the stale draft instead of
+    // silently treating the model's older view as current.
+    const todos = todosForAiDay(date).map((todo) => ({ ...todo }));
+    if (!todos.length) throw new Error("这一天没有需要安排的待办。可先新建待办或给重要任务设置日期。");
+    const body = buildDayPlanRequest(todos, {
+      date,
+      now: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai"
+    }, config);
+    const response = await requestOpenClawPlan({
+      endpoint: config.endpoint,
+      token,
+      agentId: config.agentId,
+      body,
+      expectedTool: DAY_PLAN_TOOL_NAME
+    });
+    const appliedWhilePlanning = data.aiTaskCoach.dayPlans.find((plan) => plan.date === date && plan.status === "applied" && !plan.undoneAt);
+    if (appliedWhilePlanning) {
+      throw new Error("AI 生成期间已有排程被应用，本次新草案未保存。请先撤销已应用安排再重新生成。");
+    }
+    const plan = createDeterministicDayPlan({ date, todos, aiPlan: response.arguments, config, now: Date.now() });
+    data.aiTaskCoach = normalizeAiTaskCoachState({
+      ...data.aiTaskCoach,
+      dayPlans: [...data.aiTaskCoach.dayPlans.filter((row) => row.id !== plan.id), plan]
+    });
+    flushNow();
+    return { ok: true, plan, message: "今日排程草案已生成；确认前不会修改任何待办。" };
+  });
+}
+function findAiDayPlan(planId) {
+  return data.aiTaskCoach.dayPlans.find((plan) => plan.id === String(planId || "")) || null;
+}
+function applyAiDayPlan(planId) {
+  const plan = findAiDayPlan(planId);
+  if (!plan) return { ok: false, reason: "not_found", message: "这份排程草案已经不存在，请重新生成。" };
+  if (plan.status !== "draft") return { ok: false, reason: "not_draft", message: "只有尚未应用的草案可以应用。" };
+  const result = applyDayPlan(data.todos, plan, { now: Date.now() });
+  if (!result.ok) {
+    return { ...result, message: "部分待办已变化，为避免覆盖你的修改，本次没有改动任何时间。请重新安排。" };
+  }
+  plan.status = "applied";
+  plan.undo = result.undo;
+  plan.appliedAt = Date.now();
+  data.aiTaskCoach = normalizeAiTaskCoachState(data.aiTaskCoach);
+  flushNow();
+  return { ok: true, plan, changedTodoIds: result.changedTodoIds, message: `已应用 ${result.changedTodoIds.length} 项安排，可随时撤销本次变更。` };
+}
+function undoAiDayPlan(planId) {
+  const plan = findAiDayPlan(planId);
+  if (!plan) return { ok: false, reason: "not_found", message: "找不到这次排程记录。" };
+  if (plan.status !== "applied" || !Array.isArray(plan.undo?.items)) {
+    return { ok: false, reason: "not_applied", message: "这份排程没有可撤销的已应用变更。" };
+  }
+  const result = undoDayPlan(data.todos, plan.undo, { now: Date.now() });
+  if (!result.ok) {
+    return { ...result, message: "待办时间在应用后又被修改，为避免覆盖新内容，本次没有撤销任何项目。" };
+  }
+  plan.status = "undone";
+  plan.undoneAt = Date.now();
+  data.aiTaskCoach = normalizeAiTaskCoachState(data.aiTaskCoach);
+  flushNow();
+  return { ok: true, plan, changedTodoIds: result.changedTodoIds, message: `已撤销 ${result.changedTodoIds.length} 项安排。` };
+}
+function toggleAiTaskStep(todoId, stepId) {
+  const plan = data.aiTaskCoach.taskPlans?.[String(todoId || "")];
+  if (!plan) return { ok: false, message: "这条待办还没有 AI 拆解。" };
+  const step = plan.steps?.find((row) => row.id === String(stepId || ""));
+  if (!step) return { ok: false, message: "找不到这个行动步骤。" };
+  step.done = !step.done;
+  data.aiTaskCoach = normalizeAiTaskCoachState(data.aiTaskCoach);
+  flushNow();
+  return { ok: true, plan: data.aiTaskCoach.taskPlans[todoId] };
+}
+async function openAiCoachLink(value) {
+  const raw = String(value || "").trim();
+  if (raw.length > 2048) throw new Error("链接过长，已拒绝打开。");
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("链接格式无效。");
+  }
+  if (url.protocol !== "https:" || url.username || url.password) throw new Error("只允许打开不含凭据的 HTTPS 链接。");
+  await electron.shell.openExternal(url.toString(), { activate: true });
+  return { ok: true };
+}
+function removeTodoFromAiTaskCoach(todoId) {
+  const state2 = normalizeAiTaskCoachState(data.aiTaskCoach);
+  const taskPlans = { ...state2.taskPlans };
+  delete taskPlans[todoId];
+  const referencesTodo = (plan) => [
+    ...(plan.sourceSchedules || []),
+    ...(plan.items || []),
+    ...(plan.unscheduled || []),
+    ...(plan.undo?.items || [])
+  ].some((row) => row.todoId === todoId);
+  data.aiTaskCoach = normalizeAiTaskCoachState({
+    ...state2,
+    taskPlans,
+    dayPlans: state2.dayPlans.filter((plan) => !referencesTodo(plan))
+  });
 }
 const nextOrder = (rows) => rows.length ? Math.max(...rows.map((r) => r.order ?? 0)) + 1 : 0;
 function normalizeReminder(todo) {
@@ -885,11 +1314,14 @@ const repo = {
   removeTodo(id) {
     const before = data.todos.length;
     data.todos = data.todos.filter((t) => t.id !== id);
+    if (data.todos.length < before) removeTodoFromAiTaskCoach(id);
     scheduleFlush();
     return { ok: data.todos.length < before };
   },
   clearCompleted(listId) {
+    const removedIds = data.todos.filter((t) => t.done && (!listId || t.listId === listId)).map((t) => t.id);
     data.todos = data.todos.filter((t) => !(t.done && (!listId || t.listId === listId)));
+    for (const id of removedIds) removeTodoFromAiTaskCoach(id);
     scheduleFlush();
     return { ok: true };
   },
@@ -1195,7 +1627,8 @@ const repo = {
       goals: this.listGoals(),
       expenses: this.listExpenses(),
       focusTimer: { ...data.focusTimer },
-      focusSessions: data.focusSessions.map((session) => ({ ...session }))
+      focusSessions: data.focusSessions.map((session) => ({ ...session })),
+      aiTaskCoach: rendererAiTaskCoachState()
     };
   },
   /** 提醒调度器用：拿到原始数组好就地改 notifiedKey */
@@ -2822,6 +3255,7 @@ function registerIpc() {
     const wasAutoLaunch = before.autoLaunch;
     const safePatch = { ...patch || {} };
     delete safePatch.remoteReminder;
+    delete safePatch.aiTaskCoach;
     const next = patchSettings(safePatch);
     if (safePatch.theme) electron.nativeTheme.themeSource = next.theme === "light" ? "light" : "dark";
     if (safePatch.widget) {
@@ -2852,6 +3286,54 @@ function registerIpc() {
   handleTrusted("remoteReminder:test", async (event) => {
     ensureMainWindowSender(event);
     return sendRemoteReminderTest();
+  });
+  handleTrusted("aiCoach:getConfig", (event) => {
+    ensureMainWindowSender(event);
+    return publicAiTaskCoachConfig();
+  });
+  handleTrusted("aiCoach:saveConfig", (event, input) => {
+    ensureMainWindowSender(event);
+    const result = saveAiTaskCoachConfig(input || {});
+    pushSettings();
+    return result;
+  });
+  handleTrusted("aiCoach:probe", async (event) => {
+    ensureMainWindowSender(event);
+    return probeAiTaskCoachConnection();
+  });
+  handleTrusted("aiCoach:planTask", async (event, todoId) => {
+    ensureMainWindowSender(event);
+    const result = await planTodoWithAi(String(todoId || ""));
+    pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:planDay", async (event, date) => {
+    ensureMainWindowSender(event);
+    const result = await planDayWithAi(date);
+    pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:applyDayPlan", (event, planId) => {
+    ensureMainWindowSender(event);
+    const result = applyAiDayPlan(planId);
+    if (result.ok) pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:undoDayPlan", (event, planId) => {
+    ensureMainWindowSender(event);
+    const result = undoAiDayPlan(planId);
+    if (result.ok) pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:toggleStep", (event, todoId, stepId) => {
+    ensureMainWindowSender(event);
+    const result = toggleAiTaskStep(String(todoId || ""), String(stepId || ""));
+    if (result.ok) pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:openLink", async (event, url) => {
+    ensureMainWindowSender(event);
+    return openAiCoachLink(url);
   });
   handleTrusted("win:minimize", (e) => {
     const win = windowOf(e);
@@ -3127,6 +3609,9 @@ function bootstrap() {
   const settings2 = getSettings();
   electron.nativeTheme.themeSource = settings2.theme === "light" ? "light" : "dark";
   if (isSmokeTest) {
+    // Visual smoke data is isolated by TIMEMASTER_SMOKE_USER_DATA. Enabling the
+    // card here exercises the AI UI without storing or using a real token.
+    settings2.aiTaskCoach.enabled = true;
     const main = createMainWindow();
     const widget = settings2.widget.enabled ? createWidgetWindow({ show: false }) : null;
     void runPackagedSmokeTest(main, widget);
@@ -3204,6 +3689,47 @@ async function runPackagedSmokeTest(main, widget) {
         repeat: "weekly"
       });
       repo.toggleTodo(recurringSmokeTodo.id);
+      const coachTodo = repo.createTodo({
+        listId: smokeList.id,
+        title: "开通速卖通",
+        note: "视觉烟测不会把这条备注发送到网络",
+        date: todayForTasks,
+        priority: 2,
+        quadrant: 2
+      });
+      const coachTaskPlan = normalizeTaskPlan({
+        summary: "先核对主体资格和资料，再从官方卖家入口完成注册与店铺基础设置。",
+        nextAction: "用 10 分钟列出已有资料和缺少资料",
+        questions: ["使用企业还是个体工商户主体？", "计划经营哪些商品类目？"],
+        prerequisites: ["营业执照", "法定代表人身份证明", "常用邮箱与手机号", "可用于结算的企业账户"],
+        steps: [
+          { title: "确认主体与经营类目", detail: "先确定注册主体，核对拟售类目是否需要额外资质。", estimatedMinutes: 15 },
+          { title: "整理注册资料", detail: "把证照、联系方式和结算信息放入专用文件夹。", estimatedMinutes: 20 },
+          { title: "进入官方卖家入口", detail: "核对域名后开始注册，逐项保存审核材料。", estimatedMinutes: 30 },
+          { title: "配置店铺基础信息", detail: "完成店铺名称、物流模板和基础售后规则。", estimatedMinutes: 35 }
+        ],
+        officialLinks: [{ label: "全球速卖通卖家入口", url: "https://seller.aliexpress.com/", purpose: "开户注册与卖家后台" }],
+        cautions: ["验证码、密码和支付凭据不要交给第三方。", "类目资质和费用以官方页面当日规则为准。"],
+        followUps: ["设置物流与退货模板", "准备首批商品资料", "建立店铺合规检查清单"],
+        estimatedMinutes: 100
+      }, {
+        todoId: coachTodo.id,
+        sourceHash: taskSourceHash(coachTodo, { includeNote: false }),
+        generatedAt: Date.now()
+      });
+      const coachDayCandidates = todosForAiDay(todayForTasks).map((todo) => ({ ...todo }));
+      const coachDayPlan = createDeterministicDayPlan({
+        date: todayForTasks,
+        todos: coachDayCandidates,
+        aiPlan: { items: [{ todoId: coachTodo.id, rank: 1, estimatedMinutes: 60, reason: "重要不紧急，先完成资料准备可降低后续阻力" }] },
+        config: getSettings().aiTaskCoach,
+        now: new Date(`${todayForTasks}T08:00:00`)
+      });
+      data.aiTaskCoach = normalizeAiTaskCoachState({
+        ...data.aiTaskCoach,
+        taskPlans: { ...data.aiTaskCoach.taskPlans, [coachTodo.id]: coachTaskPlan },
+        dayPlans: [coachDayPlan]
+      });
       const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
       const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
       repo.renameExpenseCategory(ledger.id, "office", "软件订阅");
@@ -3279,6 +3805,56 @@ async function runPackagedSmokeTest(main, widget) {
       await delay(250);
       const todoCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "todos.png"), todoCapture.toPNG());
+      // Hidden Chromium windows can leave newly animated compositor layers at
+      // their first frame. Show the smoke window fully transparent so the AI
+      // drawer is actually painted without flashing a test window to the user.
+      main.setOpacity(0);
+      main.showInactive();
+      await delay(180);
+      const taskCoachOpened = await main.webContents.executeJavaScript(`(() => {
+        const row = [...document.querySelectorAll('.todo')].find((item) => item.textContent.includes('开通速卖通'));
+        const button = row?.querySelector('.todo-ai-action');
+        button?.click();
+        return Boolean(button);
+      })()`);
+      if (!taskCoachOpened) throw new Error("AI 任务拆解入口未找到。");
+      await delay(80);
+      await main.webContents.executeJavaScript(`document.querySelector('.ai-coach-drawer')?.style.setProperty('animation', 'none')`);
+      await delay(120);
+      const taskCoachState = await main.webContents.executeJavaScript(`(() => ({
+        title: document.querySelector('.ai-coach-drawer h3')?.textContent || '',
+        next: Boolean(document.querySelector('.coach-next-action')),
+        steps: document.querySelectorAll('.coach-step').length,
+        sources: document.querySelectorAll('.coach-source-card').length,
+        error: document.querySelector('.coach-status.is-error')?.textContent || '',
+        opacity: getComputedStyle(document.querySelector('.ai-coach-drawer')).opacity
+      }))()`);
+      if (!taskCoachState.title.includes("开通速卖通") || !taskCoachState.next || taskCoachState.steps !== 4 || taskCoachState.sources !== 1 || taskCoachState.error || taskCoachState.opacity !== "1") {
+        throw new Error(`AI 任务拆解界面状态错误：${JSON.stringify(taskCoachState)}`);
+      }
+      const taskCoachCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "ai-task-coach.png"), taskCoachCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.coach-close')?.click()`);
+      await delay(120);
+      await main.webContents.executeJavaScript(`document.querySelector('.coach-toolbar-button')?.click()`);
+      await delay(80);
+      await main.webContents.executeJavaScript(`document.querySelector('.ai-coach-drawer')?.style.setProperty('animation', 'none')`);
+      await delay(120);
+      const dayCoachState = await main.webContents.executeJavaScript(`(() => ({
+        drawer: Boolean(document.querySelector('.ai-coach-drawer.is-schedule')),
+        proposed: document.querySelectorAll('.coach-slot.is-proposed').length,
+        locked: document.querySelectorAll('.coach-slot.is-locked').length,
+        apply: document.querySelector('.coach-apply')?.textContent || '',
+        error: document.querySelector('.coach-status.is-error')?.textContent || '',
+        opacity: getComputedStyle(document.querySelector('.ai-coach-drawer')).opacity
+      }))()`);
+      if (!dayCoachState.drawer || dayCoachState.proposed < 1 || dayCoachState.locked < 1 || !dayCoachState.apply.includes("应用") || dayCoachState.error || dayCoachState.opacity !== "1") {
+        throw new Error(`AI 今日排程界面状态错误：${JSON.stringify(dayCoachState)}`);
+      }
+      const dayCoachCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "ai-day-plan.png"), dayCoachCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.coach-close')?.click()`);
+      await delay(120);
       await main.webContents.executeJavaScript(`[...document.querySelectorAll('.nav-item')].find((el) => el.textContent.includes('四象限'))?.click()`);
       await delay(250);
       const matrixCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
@@ -3351,7 +3927,50 @@ async function runPackagedSmokeTest(main, widget) {
         delete dialog.dataset.smokeOverflow;
         return true;
       })()`);
-      main.setOpacity(1);
+      await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        const card = document.querySelector('.ai-coach-settings-card');
+        if (!dialog || !card) return false;
+        for (const child of dialog.children) {
+          if (child === card || child.classList.contains('dialog-actions')) continue;
+          child.dataset.smokeAiDisplay = child.style.display;
+          child.style.display = 'none';
+        }
+        dialog.dataset.smokeAiMaxHeight = dialog.style.maxHeight;
+        dialog.dataset.smokeAiOverflow = dialog.style.overflow;
+        dialog.style.maxHeight = 'none';
+        dialog.style.overflow = 'visible';
+        dialog.scrollTop = 0;
+        return true;
+      })()`);
+      await delay(120);
+      const aiSettingsState = await main.webContents.executeJavaScript(`(() => ({
+        card: Boolean(document.querySelector('.ai-coach-settings-card.enabled')),
+        gateway: Boolean(document.querySelector('#coach-gatewayUrl')),
+        token: Boolean(document.querySelector('#coach-token')),
+        agent: Boolean(document.querySelector('#coach-agentId'))
+      }))()`);
+      if (!aiSettingsState.card || !aiSettingsState.gateway || !aiSettingsState.token || !aiSettingsState.agent) {
+        throw new Error(`AI 设置界面状态错误：${JSON.stringify(aiSettingsState)}`);
+      }
+      main.webContents.invalidate();
+      await delay(80);
+      const aiSettingsCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "settings-ai-coach.png"), aiSettingsCapture.toPNG());
+      await main.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.settings-dialog');
+        if (!dialog) return false;
+        for (const child of dialog.children) {
+          if (!Object.prototype.hasOwnProperty.call(child.dataset, 'smokeAiDisplay')) continue;
+          child.style.display = child.dataset.smokeAiDisplay;
+          delete child.dataset.smokeAiDisplay;
+        }
+        dialog.style.maxHeight = dialog.dataset.smokeAiMaxHeight || '';
+        dialog.style.overflow = dialog.dataset.smokeAiOverflow || '';
+        delete dialog.dataset.smokeAiMaxHeight;
+        delete dialog.dataset.smokeAiOverflow;
+        return true;
+      })()`);
       await main.webContents.executeJavaScript(`document.querySelector('.mask')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
       await delay(100);
       const settingsDialogClosed = await main.webContents.executeJavaScript(`!document.querySelector('.settings-dialog')`);

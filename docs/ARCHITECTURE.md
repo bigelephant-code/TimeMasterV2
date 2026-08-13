@@ -31,6 +31,8 @@ Main process
         ├── 专注与提醒调度
         ├── 默认关闭的 OpenClaw 提醒队列
         │   └── loopback OpenClaw → 用户配置的模型 / QQ Bot
+        ├── 默认关闭的 AI 任务教练
+        │   └── loopback OpenClaw Responses → 结构化草案 → 本地排程/事务应用
         └── 费用台账 Excel 导出
 ```
 
@@ -49,9 +51,12 @@ Main process
 - `goals`：目标、周期累计或费用台账配置；v4 的费用台账在这里保存独立的 `expenseCategories` 类别目录；
 - `expenses`：费用明细，其中 `cat` 引用所属台账中不可变的稳定类别 ID；
 - `focus`：专注计时状态与完成记录；
+- `aiTaskCoach`：可选任务拆解、步骤勾选状态、今日排程草案及批次撤销记录；它是 v4 的向后兼容可选扩展，不改变版本门禁；
 - `settings`：主题、窗口、小组件、天气和时间节点设置。
 
 开发中的 OpenClaw 远程提醒不改变上述主业务数据的本地优先模型。非敏感开关、loopback Gateway 地址、QQ 目标和可选账号 ID 作为设置保存；时间大师侧 Hook token 副本由 Electron `safeStorage` 加密后单独写入 `secrets.json`，不进入 `settings.json` 或 `data.json`。OpenClaw 侧仍需在其配置或运行环境中持有同一 token，并作为独立的 ACL 保护边界。`remote-reminder-outbox.json` 只保留有界的事件标识、待办/发生项引用、尝试状态与重试时间等投递元数据，不保存 Hook token、QQ 目标或提醒正文。
+
+AI 任务教练使用独立的 `/v1/responses` Gateway Token，不能复用提醒 Hook token。非敏感配置进入 `settings.json`，时间大师侧 Token 副本与 Hook token 分键写入 `secrets.json` 并由 `safeStorage` 加密。AI 草案与精确撤销数据跟待办一起保存在 `data.json`，从而避免“任务时间已写而撤销记录仍在另一个文件”的跨文件不一致。主进程只向专用 Agent 发送当前请求的最小快照；Agent 不获得数据文件路径或任意读写工具。
 
 `data.backup.json` 与主数据通常位于同一磁盘，它是便利恢复副本，不是异地或版本化灾备。v3→v4 迁移会在规范化前另写一份不覆盖、不会自动轮换的 `data.pre-v4-<timestamp>[-n].json`；它便于失败恢复，也会延长本地敏感数据的保留时间。变更数据格式前必须使用复制后的脱敏 fixture 测试迁移，不能把唯一一份真实用户数据作为开发样本。
 
@@ -78,6 +83,10 @@ Excel 对账以稳定类别 ID 而不是可变显示名称作为汇总键，并�
 4. OpenClaw 根据用户配置选择模型、QQ Bot 目标类型（私聊、群或频道）和可选账号后继续外部投递。
 
 `/hooks/agent` 返回 200 只表示 OpenClaw 已受理，不是 QQ 送达回执。QQ 主动消息还可能受目标类型、所选账号、最近用户交互窗口、限流和平台政策限制。因此状态只能表述“OpenClaw 已受理”，不能宣称“QQ 已送达”；Windows 通知是独立尝试的本地兜底，但其可见展示仍受 Windows 通知设置影响。
+
+当前未发布源码还包含默认关闭的 AI 任务教练。renderer 只能通过主窗口专属 IPC 请求单任务拆解或今日排程；主进程从加密存储读取 Gateway Token，并以非流式 `POST /v1/responses` 调用 `timemaster-coach`。请求固定要求白名单 function call，返回后执行 JSON/schema/长度/HTTPS 链接校验。模型负责拆解、预计时长和优先顺序；本地确定性排程器负责避开手工时间、午休和缓冲，并排除运行中或重复任务。应用前以 `updatedAt` 和排程签名全量复核：任一冲突都会使整个批次零修改。撤销也只在当前字段仍与该批次写入值完全一致时执行，AI 主动调度不会写入自动延期历史。
+
+Responses 的共享 Gateway bearer 在 OpenClaw 安全模型中等同完整 operator 凭据，不能通过请求头降权。时间大师因此只允许 loopback HTTP、禁止重定向、限制超时和响应体，并把密钥留在主进程；更强隔离需要用户使用独立 Gateway/Profile 和无文件、运行时、消息、自动化、UI、节点权限的专用 Agent。详见 [AI 任务教练配置指南](OPENCLAW_AI_TASK_COACH.md)。
 
 ## 产品身份与兼容性
 
@@ -106,5 +115,6 @@ npm run check
 4. `electron-vite` 从 `src/` 生成 `out/`；
 5. 构建产物包含预期入口并使用收紧后的生产 CSP。
 6. v3→v4 费用类别迁移、稳定 ID、停用/恢复、固定货款分组和遗留金额保留通过独立边界测试。
+7. AI Responses 的 loopback/鉴权/结构校验、确定性排程、冲突零写与精确撤销通过独立边界测试。
 
 这些检查不能证明 UI 的所有路径或数据迁移都正确，也不声称从当前源码生成的二进制与原始 0.1.3 逐字节一致。后续优先补齐数据迁移、损坏恢复、费用导出、专注状态和打包应用烟雾测试。

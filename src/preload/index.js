@@ -65,6 +65,17 @@ const api = {
     probe: () => electron.ipcRenderer.invoke("remoteReminder:probe"),
     test: () => electron.ipcRenderer.invoke("remoteReminder:test")
   },
+  aiCoach: {
+    getConfig: () => electron.ipcRenderer.invoke("aiCoach:getConfig"),
+    saveConfig: (input) => electron.ipcRenderer.invoke("aiCoach:saveConfig", input),
+    probe: () => electron.ipcRenderer.invoke("aiCoach:probe"),
+    planTask: (todoId) => electron.ipcRenderer.invoke("aiCoach:planTask", todoId),
+    planDay: (date) => electron.ipcRenderer.invoke("aiCoach:planDay", date),
+    applyDayPlan: (planId) => electron.ipcRenderer.invoke("aiCoach:applyDayPlan", planId),
+    undoDayPlan: (planId) => electron.ipcRenderer.invoke("aiCoach:undoDayPlan", planId),
+    toggleStep: (todoId, stepId) => electron.ipcRenderer.invoke("aiCoach:toggleStep", todoId, stepId),
+    openLink: (url) => electron.ipcRenderer.invoke("aiCoach:openLink", url)
+  },
   win: {
     minimize: () => electron.ipcRenderer.invoke("win:minimize"),
     toggleMaximize: () => electron.ipcRenderer.invoke("win:toggleMaximize"),
