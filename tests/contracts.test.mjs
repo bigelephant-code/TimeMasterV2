@@ -8,6 +8,8 @@ const main = readFileSync(join(root, 'src', 'main', 'index.js'), 'utf8')
 const preload = readFileSync(join(root, 'src', 'preload', 'index.js'), 'utf8')
 const bundledRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'styles-4HYtOQXD.js'), 'utf8')
 const mainRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'index-DQb7weSm.js'), 'utf8')
+const mainStyles = readFileSync(join(root, 'src', 'renderer', 'assets', 'styles-Bi0oHDKn.css'), 'utf8')
+const expenseStyles = readFileSync(join(root, 'src', 'renderer', 'assets', 'index-DMAWqcRK.css'), 'utf8')
 const widgetRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'widget-DirRFNEv.js'), 'utf8')
 const widgetStyles = readFileSync(join(root, 'src', 'renderer', 'assets', 'widget-BT2CLSvv.css'), 'utf8')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -128,11 +130,12 @@ test('calendar navigation selects the requested date before rendering history', 
   assert.match(navigation, /state\.view = "calendar"/)
 })
 
-test('expense category controls are exposed beside the actual ledger buttons', () => {
+test('expense category controls are exposed beside the actual ledger buttons only', () => {
   assert.match(mainRenderer, /编辑费用分类按钮/)
   assert.match(mainRenderer, /这里管理的就是“记一笔”区域中的费用分类按钮/)
   assert.match(mainRenderer, /删除分类不会删除账目/)
   assert.match(mainRenderer, /从记账按钮中删除，历史账目仍会保留/)
+  assert.equal((mainRenderer.match(/onClick: openCatForm/g) || []).length, 1)
 })
 
 test('widget expense quick entry can be cancelled without writing a record', () => {
@@ -143,6 +146,17 @@ test('widget expense quick entry can be cancelled without writing a record', () 
   assert.match(closeSource, /ledgerFor\.value = null/)
   assert.match(closeSource, /ledgerAmount\.value = ""/)
   assert.match(closeSource, /ledgerNote\.value = ""/)
+})
+
+test('widget focus card flips into a prominent timer and returns directly on cancel', () => {
+  assert.match(widgetRenderer, /class: "wx-focus-flipper"/)
+  assert.match(widgetRenderer, /class: "wx-focus-face wx-focus-back"/)
+  assert.match(widgetRenderer, /class: "wx-focus-active-clock"/)
+  assert.match(widgetRenderer, /class: "wx-focus-cancel"/)
+  assert.match(widgetRenderer, /function cancelFocusFromBar\(\) \{\s*await actions\.cancelFocus\(\)/)
+  assert.match(widgetStyles, /\.wx-focusbar\.is-active \.wx-focus-flipper \{\s*transform: rotateX\(180deg\);/)
+  assert.match(widgetStyles, /\.wx-focus-active-clock \{[\s\S]*?font-size: clamp\(24px, 7\.2vw, 29px\);/)
+  assert.match(widgetStyles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.wx-focus-flipper,/)
 })
 
 test('month calendar summarizes todo density without repeating titles', () => {
@@ -176,6 +190,28 @@ test('automatic rollover keeps an incomplete occurrence on the original calendar
   assert.match(mainRenderer, /rollover: cellTodos\(day\)\.rollover > 0/)
 })
 
+test('monthly calendar summary exposes auditable rollover and completion details', () => {
+  assert.match(main, /require\("\.\/todo-completions\.js"\)/)
+  assert.match(main, /completionHistory: \[\]/)
+  assert.match(main, /function migrateTodoCompletionHistories\(\)/)
+  const repeatCompletion = main.slice(main.indexOf('if (!todo.done && todo.repeat !== "none"'), main.indexOf('todo.done = !todo.done'))
+  assert.ok(
+    repeatCompletion.indexOf('recordTodoCompletion(todo, Date.now())') < repeatCompletion.indexOf('todo.date = advanceDate'),
+    'a recurring occurrence must be recorded before its active date advances'
+  )
+  assert.match(mainRenderer, /const completionsByDate = computed\(\(\) => \{/)
+  assert.match(mainRenderer, /const monthRollovers = computed\(\(\) => \{/)
+  assert.match(mainRenderer, /const monthCompletions = computed\(\(\) => \{/)
+  assert.match(mainRenderer, /"本月延期"/)
+  assert.match(mainRenderer, /"本月完成"/)
+  assert.match(mainRenderer, /"calendar-month-detail-row"/)
+  assert.match(mainRenderer, /顺延至 \$\{record\.rolledTo\}/)
+  assert.match(mainRenderer, /completionMoment\(record\)/)
+  assert.match(mainStyles, /\.calendar-month-summary \{/)
+  assert.match(mainStyles, /\.calendar-month-detail-rows \{[\s\S]*?overflow-y: auto;/)
+  assert.match(mainStyles, /\.calendar-month-detail-name,[\s\S]*?text-overflow: ellipsis;/)
+})
+
 test('calendar and widget keep ledger categories separate and expose unclassified amounts', () => {
   assert.match(mainRenderer, /function calendarExpenseSummary\(entries = \[\]\)/)
   assert.match(mainRenderer, /const key = JSON\.stringify\(\[goalId, categoryId\]\)/)
@@ -184,7 +220,10 @@ test('calendar and widget keep ledger categories separate and expose unclassifie
   assert.match(mainRenderer, /遗留\/未分类/)
   assert.match(bundledRenderer, /unclassified: sum\.unclassified/)
   assert.match(widgetRenderer, /statsOf\(g\)\?\.cur\.unclassified/)
-  assert.match(widgetStyles, /grid-template-columns: repeat\(auto-fill, minmax\(42px, 1fr\)\)/)
-  assert.match(widgetStyles, /\.wx-led-split \{\s*grid-column: 1 \/ -1;/)
-  assert.match(widgetStyles, /\.wx-led-cat\.cogs \{\s*grid-column: 1 \/ -1;/)
+  assert.match(widgetStyles, /\.wx-led-cats \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/)
+  assert.match(widgetStyles, /\.wx-led-cat \{[\s\S]*?flex: 0 0 auto;[\s\S]*?padding: 5px 11px 6px;/)
+  assert.match(expenseStyles, /\.exp-cats\[data-v-bfbd477c\] \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/)
+  assert.doesNotMatch(widgetRenderer, /class: "wx-led-split"/)
+  assert.doesNotMatch(widgetStyles, /\.wx-led-cat\.cogs \{[\s\S]*?grid-column:/)
+  assert.doesNotMatch(expenseStyles, /\.exp-cat\.cogs\[data-v-bfbd477c\] \{[\s\S]*?grid-column:/)
 })

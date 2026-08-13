@@ -382,7 +382,7 @@ const _hoisted_4$5 = { class: "seg" };
 const _hoisted_5$5 = ["onClick"];
 const _hoisted_6$5 = {
   key: 0,
-  style: { "display": "flex", "flex-direction": "column", "min-height": "0" }
+  class: "calendar-month-pane"
 };
 const _hoisted_7$5 = { class: "grid-head" };
 const _hoisted_8$5 = { class: "month-grid" };
@@ -449,6 +449,24 @@ const _hoisted_rollover_record_state = { class: "rollover-record-state" };
 const _hoisted_rollover_record_copy = { class: "rollover-record-copy" };
 const _hoisted_rollover_record_title = { class: "rollover-record-title" };
 const _hoisted_rollover_record_meta = { class: "rollover-record-meta" };
+const _hoisted_completion_history = { class: "completion-history" };
+const _hoisted_completion_history_head = { class: "completion-history-head" };
+const _hoisted_completion_history_rows = { class: "completion-history-rows" };
+const _hoisted_completion_record_state = { class: "completion-record-state" };
+const _hoisted_completion_record_copy = { class: "completion-record-copy" };
+const _hoisted_completion_record_title = { class: "completion-record-title" };
+const _hoisted_completion_record_meta = { class: "completion-record-meta" };
+const _hoisted_month_summary = { class: "calendar-month-summary" };
+const _hoisted_month_summary_intro = { class: "calendar-month-summary-intro" };
+const _hoisted_month_summary_buttons = { class: "calendar-month-summary-buttons" };
+const _month_summary_button_props = ["aria-expanded"];
+const _hoisted_month_detail_head = { class: "calendar-month-detail-head" };
+const _hoisted_month_detail_title = { class: "calendar-month-detail-title" };
+const _hoisted_month_detail_rows = { class: "calendar-month-detail-rows" };
+const _hoisted_month_detail_date = { class: "calendar-month-detail-date" };
+const _hoisted_month_detail_copy = { class: "calendar-month-detail-copy" };
+const _hoisted_month_detail_name = { class: "calendar-month-detail-name" };
+const _hoisted_month_detail_meta = { class: "calendar-month-detail-meta" };
 const _hoisted_42$1 = {
   key: 0,
   class: "empty"
@@ -459,6 +477,7 @@ const _sfc_main$7 = {
   setup(__props) {
     const quickText = ref("");
     const dateMenu = ref(null);
+    const monthInsight = ref(null);
     const weekStart = computed(() => state.settings?.weekStart ?? 1);
     const labels = computed(() => weekdayLabels(weekStart.value));
     const cells = computed(
@@ -500,6 +519,81 @@ const _sfc_main$7 = {
       return rolloversByDate.value.get(day) || [];
     }
     const selectedRollovers = computed(() => rolloverRecordsOn(state.selected));
+    const completionsByDate = computed(() => {
+      const map = /* @__PURE__ */ new Map();
+      const add = (date, record) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return;
+        if (!map.has(date)) map.set(date, []);
+        map.get(date).push(record);
+      };
+      for (const todo of state.todos) {
+        if (todo.done && todo.date) {
+          add(todo.date, {
+            key: `todo:${todo.id}:${todo.date}`,
+            source: "todo",
+            todoId: todo.id,
+            date: todo.date,
+            status: "completed",
+            completedAt: todo.doneAt,
+            title: todo.title || "未命名待办",
+            listName: listById.value.get(todo.listId)?.name || "已删除清单"
+          });
+        }
+        const history = Array.isArray(todo.completionHistory) ? todo.completionHistory : [];
+        for (const record of history) {
+          if (!record?.date || record.status !== "completed") continue;
+          const recordListId = record.listId || todo.listId;
+          add(record.date, {
+            ...record,
+            key: `history:${todo.id}:${record.date}`,
+            source: "history",
+            todoId: todo.id,
+            title: record.title || todo.title || "未命名待办",
+            listName: listById.value.get(recordListId)?.name || "已删除清单"
+          });
+        }
+      }
+      for (const rows of map.values()) {
+        rows.sort((a, b) => Number(a.completedAt || 0) - Number(b.completedAt || 0) || a.title.localeCompare(b.title));
+      }
+      return map;
+    });
+    function completionRecordsOn(day) {
+      return completionsByDate.value.get(day) || [];
+    }
+    const selectedCompletionHistory = computed(() => completionRecordsOn(state.selected).filter((record) => record.source === "history"));
+    const cursorMonthKey = computed(() => String(state.cursor || "").slice(0, 7));
+    const cursorMonthLabel = computed(() => {
+      const [year, month] = cursorMonthKey.value.split("-");
+      return `${year}年${Number(month)}月`;
+    });
+    const monthRollovers = computed(() => {
+      const rows = [];
+      for (const [date, records] of rolloversByDate.value) {
+        if (date.startsWith(`${cursorMonthKey.value}-`)) rows.push(...records);
+      }
+      return rows.sort((a, b) => b.fromDate.localeCompare(a.fromDate) || Number(b.recordedAt || 0) - Number(a.recordedAt || 0));
+    });
+    const monthCompletions = computed(() => {
+      const rows = [];
+      for (const [date, records] of completionsByDate.value) {
+        if (date.startsWith(`${cursorMonthKey.value}-`)) rows.push(...records);
+      }
+      return rows.sort((a, b) => b.date.localeCompare(a.date) || Number(b.completedAt || 0) - Number(a.completedAt || 0));
+    });
+    const monthInsightRows = computed(() => monthInsight.value === "rollover" ? monthRollovers.value : monthInsight.value === "completed" ? monthCompletions.value : []);
+    const monthInsightLabel = computed(() => monthInsight.value === "rollover" ? "延期明细" : "完成明细");
+    function toggleMonthInsight(type) {
+      monthInsight.value = monthInsight.value === type ? null : type;
+    }
+    const shortDayLabel = (date) => `${Number(String(date || "").slice(-2))}日`;
+    function completionMoment(record) {
+      const stamp = Number(record.completedAt || 0);
+      if (!stamp) return "完成时间未记录";
+      const value = new Date(stamp);
+      const pad2 = (number) => String(number).padStart(2, "0");
+      return `完成于 ${pad2(value.getMonth() + 1)}-${pad2(value.getDate())} ${pad2(value.getHours())}:${pad2(value.getMinutes())}`;
+    }
     function step(dir) {
       if (state.calendarMode === "month") state.cursor = addMonths(state.cursor, dir);
       else if (state.calendarMode === "week") state.cursor = addDays(state.cursor, dir * 7);
@@ -624,15 +718,17 @@ const _sfc_main$7 = {
     function cellTodos(day) {
       const items = todosOn(day);
       const rollovers = rolloverRecordsOn(day);
-      if (!items.length && !rollovers.length) return null;
-      const done = items.filter((todo) => todo.done).length;
-      const open = items.length - done + rollovers.length;
-      const total = items.length + rollovers.length;
+      const completions = completionRecordsOn(day);
+      if (!items.length && !rollovers.length && !completions.length) return null;
+      const done = completions.length;
+      const open = items.filter((todo) => !todo.done).length + rollovers.length;
+      const total = open + done;
       return {
         total,
         done,
         open,
         rollover: rollovers.length,
+        completion: completions.length,
         density: Math.min(6, total),
         title: `${total} 项记录 · ${open} 项未完成${done ? ` · ${done} 项已完成` : ""}${rollovers.length ? ` · ${rollovers.length} 项为顺延记录` : ""}；点击后在右侧查看详情`
       };
@@ -794,7 +890,69 @@ const _sfc_main$7 = {
                   ], 8, _hoisted_15$2)) : createCommentVNode("", true)
                 ], 42, _hoisted_9$4);
               }), 128))
-            ])
+            ]),
+            createBaseVNode("section", _hoisted_month_summary, [
+              createBaseVNode("div", _hoisted_month_summary_intro, [
+                createBaseVNode("span", null, "本月执行复盘"),
+                createBaseVNode("b", null, toDisplayString(cursorMonthLabel.value), 1)
+              ]),
+              createBaseVNode("div", _hoisted_month_summary_buttons, [
+                createBaseVNode("button", {
+                  type: "button",
+                  class: normalizeClass(["rollover", { active: monthInsight.value === "rollover" }]),
+                  "aria-expanded": monthInsight.value === "rollover",
+                  onClick: _cache[19] || (_cache[19] = ($event) => toggleMonthInsight("rollover"))
+                }, [
+                  createBaseVNode("span", null, "本月延期"),
+                  createBaseVNode("strong", null, toDisplayString(monthRollovers.value.length), 1),
+                  createBaseVNode("em", null, "项")
+                ], 10, _month_summary_button_props),
+                createBaseVNode("button", {
+                  type: "button",
+                  class: normalizeClass(["completed", { active: monthInsight.value === "completed" }]),
+                  "aria-expanded": monthInsight.value === "completed",
+                  onClick: _cache[20] || (_cache[20] = ($event) => toggleMonthInsight("completed"))
+                }, [
+                  createBaseVNode("span", null, "本月完成"),
+                  createBaseVNode("strong", null, toDisplayString(monthCompletions.value.length), 1),
+                  createBaseVNode("em", null, "项")
+                ], 10, _month_summary_button_props)
+              ])
+            ]),
+            monthInsight.value ? (openBlock(), createElementBlock("section", {
+              key: 0,
+              class: normalizeClass(["calendar-month-detail", monthInsight.value])
+            }, [
+              createBaseVNode("div", _hoisted_month_detail_head, [
+                createBaseVNode("div", _hoisted_month_detail_title, [
+                  createBaseVNode("span", null, toDisplayString(cursorMonthLabel.value) + " · " + toDisplayString(monthInsightLabel.value), 1),
+                  createBaseVNode("b", null, toDisplayString(monthInsightRows.value.length) + " 项", 1)
+                ]),
+                createBaseVNode("button", {
+                  type: "button",
+                  title: "关闭明细",
+                  onClick: _cache[21] || (_cache[21] = ($event) => monthInsight.value = null)
+                }, "×")
+              ]),
+              createBaseVNode("div", _hoisted_month_detail_rows, [
+                (openBlock(true), createElementBlock(Fragment, null, renderList(monthInsightRows.value, (record) => {
+                  return openBlock(), createElementBlock("div", {
+                    key: record.key,
+                    class: "calendar-month-detail-row"
+                  }, [
+                    createBaseVNode("span", _hoisted_month_detail_date, toDisplayString(shortDayLabel(record.fromDate || record.date)), 1),
+                    createBaseVNode("div", _hoisted_month_detail_copy, [
+                      createBaseVNode("div", _hoisted_month_detail_name, toDisplayString(record.title), 1),
+                      createBaseVNode("div", _hoisted_month_detail_meta, toDisplayString(monthInsight.value === "rollover" ? `顺延至 ${record.rolledTo} · ${record.listName}` : `${completionMoment(record)} · ${record.listName}`), 1)
+                    ])
+                  ]);
+                }), 128)),
+                !monthInsightRows.value.length ? (openBlock(), createElementBlock("div", {
+                  key: 0,
+                  class: "calendar-month-detail-empty"
+                }, toDisplayString(monthInsight.value === "rollover" ? "本月没有延期记录" : "本月还没有完成记录"), 1)) : createCommentVNode("", true)
+              ])
+            ], 2)) : createCommentVNode("", true)
           ])) : unref(state).calendarMode === "week" ? (openBlock(), createElementBlock("div", _hoisted_18$2, [
             (openBlock(true), createElementBlock(Fragment, null, renderList(cells.value, (day) => {
               return openBlock(), createElementBlock("div", {
@@ -959,6 +1117,26 @@ const _sfc_main$7 = {
                   }), 128))
                 ])
               ])) : createCommentVNode("", true),
+              selectedCompletionHistory.value.length ? (openBlock(), createElementBlock("section", _hoisted_completion_history, [
+                createBaseVNode("div", _hoisted_completion_history_head, [
+                  createBaseVNode("span", null, "当日完成 · 周期记录"),
+                  createBaseVNode("b", null, toDisplayString(selectedCompletionHistory.value.length), 1)
+                ]),
+                createBaseVNode("div", _hoisted_completion_history_rows, [
+                  (openBlock(true), createElementBlock(Fragment, null, renderList(selectedCompletionHistory.value, (record) => {
+                    return openBlock(), createElementBlock("div", {
+                      key: record.key,
+                      class: "completion-record"
+                    }, [
+                      createBaseVNode("span", _hoisted_completion_record_state, "已完成"),
+                      createBaseVNode("div", _hoisted_completion_record_copy, [
+                        createBaseVNode("div", _hoisted_completion_record_title, toDisplayString(record.title), 1),
+                        createBaseVNode("div", _hoisted_completion_record_meta, toDisplayString(completionMoment(record)) + " · " + toDisplayString(record.listName), 1)
+                      ])
+                    ]);
+                  }), 128))
+                ])
+              ])) : createCommentVNode("", true),
               (openBlock(true), createElementBlock(Fragment, null, renderList(selectedTodos.value, (t) => {
                 return openBlock(), createBlock(_sfc_main$8, {
                   key: t.id,
@@ -966,7 +1144,7 @@ const _sfc_main$7 = {
                   "show-list": ""
                 }, null, 8, ["todo"]);
               }), 128)),
-              !selectedTodos.value.length && !selectedRollovers.value.length ? (openBlock(), createElementBlock("div", _hoisted_42$1, [..._cache[17] || (_cache[17] = [
+              !selectedTodos.value.length && !selectedRollovers.value.length && !selectedCompletionHistory.value.length ? (openBlock(), createElementBlock("div", _hoisted_42$1, [..._cache[17] || (_cache[17] = [
                 createTextVNode(" 这天还没有安排", -1),
                 createBaseVNode("br", null, null, -1),
                 createTextVNode("在下面输入就能加一条 ", -1)
@@ -1960,11 +2138,6 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                 }, toDisplayString(g.name), 9, _hoisted_4$2);
               }), 128))
             ], 40, _hoisted_3$2)) : (openBlock(), createElementBlock("span", _hoisted_5$2, toDisplayString(goal.value.name), 1)),
-            createBaseVNode("button", {
-              class: "ghost exp-cat-btn",
-              title: "新增、改名、停用或恢复记账类别",
-              onClick: openCatForm
-            }, " 费用分类 "),
             createBaseVNode("div", _hoisted_6$2, [
               createBaseVNode("select", {
                 class: "exp-preset",

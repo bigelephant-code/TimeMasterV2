@@ -1,6 +1,6 @@
 {
   "name": "timemaster-v2",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "时间大师 — 日历、待办、四象限、专注、主任务、费用台账与桌面小组件",
   "author": "Ray",
   "license": "MIT",
@@ -23,7 +23,7 @@
     "dev": "npm run ensure:electron && electron-vite dev",
     "start": "npm run ensure:electron && electron-vite preview",
     "check:reference": "node scripts/verify-runtime.mjs",
-    "test": "node --test tests/contracts.test.mjs tests/task-time.test.mjs tests/todo-rollovers.test.mjs tests/expense-categories.test.mjs",
+    "test": "node --test tests/contracts.test.mjs tests/task-time.test.mjs tests/todo-rollovers.test.mjs tests/todo-completions.test.mjs tests/expense-categories.test.mjs",
     "check": "npm run check:reference && npm test && npm run build && npm run verify:build",
     "build": "electron-vite build && node scripts/harden-built-csp.mjs",
     "verify:build": "node scripts/verify-build.mjs",

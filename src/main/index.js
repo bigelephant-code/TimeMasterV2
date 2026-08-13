@@ -8,6 +8,7 @@ const node_zlib = require("node:zlib");
 const node_url = require("node:url");
 const { normalizeTaskTime, taskStartTime, taskEndTime } = require("./task-time.js");
 const { normalizeTodoRolloverHistory, recordTodoRollover } = require("./todo-rollovers.js");
+const { normalizeTodoCompletionHistory, recordTodoCompletion } = require("./todo-completions.js");
 const {
   defaultExpenseCategories,
   migrateExpenseCategories,
@@ -327,6 +328,7 @@ function initStore() {
   data.focusTimer = normalizedFocusTimer;
   migrateTodoTimes();
   migrateTodoRolloverHistories();
+  migrateTodoCompletionHistories();
   migrateGoals();
   if (data.version !== DATA_VERSION) {
     data.version = DATA_VERSION;
@@ -374,6 +376,14 @@ function migrateTodoRolloverHistories() {
   let changed = false;
   for (const todo of data.todos) {
     if (normalizeTodoRolloverHistory(todo)) changed = true;
+  }
+  if (changed) scheduleFlush();
+  return changed;
+}
+function migrateTodoCompletionHistories() {
+  let changed = false;
+  for (const todo of data.todos) {
+    if (normalizeTodoCompletionHistory(todo)) changed = true;
   }
   if (changed) scheduleFlush();
   return changed;
@@ -548,6 +558,8 @@ const repo = {
       // 已累计的耗时，支持中途停了再继续
       rolloverHistory: [],
       // 自动顺延历史：原日期保留为“未完成”，当前待办继续移动到新日期
+      completionHistory: [],
+      // 重复待办完成历史：日期推进前保留本次完成记录
       order: nextOrder(data.todos),
       createdAt: now,
       updatedAt: now
@@ -618,6 +630,7 @@ const repo = {
     if (!todo) return null;
     if (!todo.done) accumulate(todo);
     if (!todo.done && todo.repeat !== "none" && todo.date) {
+      recordTodoCompletion(todo, Date.now());
       todo.date = advanceDate(todo.date, todo.repeat);
       todo.notifiedKey = null;
       todo.elapsedMs = 0;
@@ -2790,6 +2803,15 @@ async function runPackagedSmokeTest(main, widget) {
     const widgetResult = await checkWindow(widget);
     const captureDir = process.env.TIMEMASTER_SMOKE_CAPTURE_DIR;
     if (captureDir) {
+      const forceHiddenWindowRepaint = async (win) => {
+        const [width, height] = win.getSize();
+        win.setSize(width - 1, height);
+        await delay(80);
+        win.setSize(width, height);
+        await delay(180);
+        win.webContents.invalidate();
+        await delay(80);
+      };
       const smokeList = repo.createList("产品研发");
       const personalList = repo.createList("个人成长");
       const todayForTasks = localYmd$1();
@@ -2801,7 +2823,7 @@ async function runPackagedSmokeTest(main, widget) {
       const yesterday = localYmd$1(yesterdayDate);
       const smokeTodos = [];
       for (const todo of [
-        { listId: smokeList.id, title: "整理 0.1.9 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
+        { listId: smokeList.id, title: "整理 0.1.10 视觉验收清单", date: todayForTasks, startTime: "18:00", endTime: "19:00", priority: 3, quadrant: 1 },
         { listId: smokeList.id, title: "完善开源项目文档", date: todayForTasks, startTime: "19:15", endTime: "20:45", priority: 2, quadrant: 2 },
         { listId: smokeList.id, title: "回顾用户反馈", date: tomorrowForTasks, startTime: "09:30", endTime: "10:00", priority: 2, quadrant: 3 },
         { listId: personalList.id, title: "阅读技术文章", date: todayForTasks, startTime: "22:00", endTime: "23:00", priority: 1, quadrant: 4 },
@@ -2814,6 +2836,17 @@ async function runPackagedSmokeTest(main, widget) {
       ]) smokeTodos.push(repo.createTodo(todo));
       repo.rollOverUnfinishedTodos(todayForTasks);
       for (const todo of smokeTodos.filter((item) => item.date === todayForTasks).slice(0, 3)) repo.toggleTodo(todo.id);
+      const recurringSmokeTodo = repo.createTodo({
+        listId: personalList.id,
+        title: "每周整理执行复盘",
+        date: todayForTasks,
+        startTime: "08:30",
+        endTime: "09:00",
+        priority: 1,
+        quadrant: 2,
+        repeat: "weekly"
+      });
+      repo.toggleTodo(recurringSmokeTodo.id);
       const ledger = repo.createGoal({ name: "工作室费用", mode: "ledger", period: "month", unit: "元" });
       const secondLedger = repo.createGoal({ name: "营销台账", mode: "ledger", period: "month", unit: "元" });
       repo.renameExpenseCategory(ledger.id, "office", "软件订阅");
@@ -2849,6 +2882,38 @@ async function runPackagedSmokeTest(main, widget) {
       node_fs.writeFileSync(node_path.join(captureDir, "calendar-compact.png"), compactCalendarCapture.toPNG());
       main.setSize(1280, 800);
       await delay(250);
+      await main.webContents.executeJavaScript(`document.querySelector('.calendar-month-summary-buttons .completed')?.click()`);
+      await delay(350);
+      const completionDetailState = await main.webContents.executeJavaScript(`(() => {
+        const detail = document.querySelector('.calendar-month-detail');
+        const title = document.querySelector('.calendar-month-detail-title span')?.textContent || '';
+        const rows = document.querySelectorAll('.calendar-month-detail-row').length;
+        return { title, rows, completedClass: detail?.classList.contains('completed') === true };
+      })()`);
+      if (!completionDetailState.completedClass || !completionDetailState.title.includes("完成明细") || completionDetailState.rows !== 4) {
+        throw new Error(`月历本月完成明细状态错误：${JSON.stringify(completionDetailState)}`);
+      }
+      await forceHiddenWindowRepaint(main);
+      const monthCompletionsCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "calendar-month-completions.png"), monthCompletionsCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.calendar-month-detail-head > button')?.click()`);
+      await delay(100);
+      await main.webContents.executeJavaScript(`document.querySelector('.calendar-month-summary-buttons .rollover')?.click()`);
+      await delay(350);
+      const rolloverDetailState = await main.webContents.executeJavaScript(`(() => {
+        const detail = document.querySelector('.calendar-month-detail');
+        const title = document.querySelector('.calendar-month-detail-title span')?.textContent || '';
+        const rows = document.querySelectorAll('.calendar-month-detail-row').length;
+        return { title, rows, rolloverClass: detail?.classList.contains('rollover') === true };
+      })()`);
+      if (!rolloverDetailState.rolloverClass || !rolloverDetailState.title.includes("延期明细") || rolloverDetailState.rows !== 1) {
+        throw new Error(`月历本月延期明细状态错误：${JSON.stringify(rolloverDetailState)}`);
+      }
+      await forceHiddenWindowRepaint(main);
+      const monthRolloversCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "calendar-month-rollovers.png"), monthRolloversCapture.toPNG());
+      await main.webContents.executeJavaScript(`document.querySelector('.calendar-month-detail-head > button')?.click()`);
+      await delay(100);
       main.webContents.send("app:navigate", { view: "calendar", date: yesterday });
       await delay(250);
       const rolloverCalendarCapture = await main.webContents.capturePage(void 0, { stayHidden: true });
@@ -2892,16 +2957,57 @@ async function runPackagedSmokeTest(main, widget) {
       await delay(250);
       const audit = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "expense-audit.png"), audit.toPNG());
+      await widget.webContents.executeJavaScript(`document.querySelector('.wx-focus-primary')?.click()`);
+      await delay(650);
+      const widgetFocusState = await widget.webContents.executeJavaScript(`(() => {
+        const card = document.querySelector('.wx-focusbar');
+        const clock = document.querySelector('.wx-focus-active-clock')?.textContent?.trim() || '';
+        const cancel = document.querySelector('.wx-focus-cancel');
+        return { active: card?.classList.contains('is-active') === true, clock, cancel: Boolean(cancel) };
+      })()`);
+      if (!widgetFocusState.active || !/^\d{2,3}:\d{2}$/.test(widgetFocusState.clock) || !widgetFocusState.cancel) {
+        throw new Error(`桌面小组件专注翻转计时状态错误：${JSON.stringify(widgetFocusState)}`);
+      }
+      await widget.webContents.executeJavaScript(`(() => {
+        const flipper = document.querySelector('.wx-focus-flipper');
+        if (!flipper) return false;
+        flipper.style.transition = 'none';
+        flipper.style.transform = 'rotateX(180deg)';
+        return true;
+      })()`);
+      await forceHiddenWindowRepaint(widget);
+      const widgetFocusActive = await widget.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "widget-focus-active.png"), widgetFocusActive.toPNG());
+      await widget.webContents.executeJavaScript(`(() => {
+        const flipper = document.querySelector('.wx-focus-flipper');
+        if (flipper) {
+          flipper.style.transition = '';
+          flipper.style.transform = '';
+        }
+        document.querySelector('.wx-focus-cancel')?.click();
+      })()`);
+      await delay(700);
+      const widgetFocusReturned = await widget.webContents.executeJavaScript(`!document.querySelector('.wx-focusbar')?.classList.contains('is-active')`);
+      if (!widgetFocusReturned) throw new Error("桌面小组件取消专注后未翻回初始界面。");
+      await widget.webContents.executeJavaScript(`(() => {
+        const flipper = document.querySelector('.wx-focus-flipper');
+        if (!flipper) return false;
+        flipper.style.transition = 'none';
+        flipper.style.transform = 'rotateX(0deg)';
+        return true;
+      })()`);
       await widget.webContents.executeJavaScript(`document.querySelector('.wx-led-cat')?.click()`);
       await delay(100);
       const widgetLedgerOpened = await widget.webContents.executeJavaScript(`Boolean(document.querySelector('.wx-led-entry'))`);
       if (!widgetLedgerOpened) throw new Error("桌面小组件费用快捷输入未打开。");
+      await forceHiddenWindowRepaint(widget);
       const widgetEntry = await widget.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "widget-entry.png"), widgetEntry.toPNG());
       await widget.webContents.executeJavaScript(`document.querySelector('.wx-led-entry')?.closest('.wx-goal')?.querySelector('.wx-goal-top')?.click()`);
       await delay(100);
       const widgetLedgerClosed = await widget.webContents.executeJavaScript(`!document.querySelector('.wx-led-entry')`);
       if (!widgetLedgerClosed) throw new Error("桌面小组件费用快捷输入未能通过点击空白处取消。");
+      await forceHiddenWindowRepaint(widget);
       const widgetLedger = await widget.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "widget-ledger.png"), widgetLedger.toPNG());
     }

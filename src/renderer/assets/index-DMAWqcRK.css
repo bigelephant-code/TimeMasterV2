@@ -707,9 +707,10 @@
   background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
 }
 .exp-cats[data-v-bfbd477c] {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   align-content: start;
+  align-items: center;
   gap: 4px;
   max-height: 116px;
   margin-bottom: 7px;
@@ -718,8 +719,9 @@
   overscroll-behavior: contain;
 }
 .exp-cat[data-v-bfbd477c] {
-  min-width: 0;
-  padding: 5px 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+  padding: 5px 11px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-soft);
@@ -744,10 +746,6 @@
   border-color: var(--border-soft);
   color: var(--text-faint);
   background: color-mix(in srgb, var(--bg-soft) 72%, var(--bg));
-}
-/* 货款单独占满一行：它是另一本账，不跟期间费用类别并排 */
-.exp-cat.cogs[data-v-bfbd477c] {
-  grid-column: 1 / -1;
 }
 .exp-add-row[data-v-bfbd477c] {
   display: flex;

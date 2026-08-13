@@ -12,6 +12,7 @@ export default defineConfig({
           index: r('src/main/index.js'),
           'task-time': r('src/main/task-time.js'),
           'todo-rollovers': r('src/main/todo-rollovers.js'),
+          'todo-completions': r('src/main/todo-completions.js'),
           'expense-categories': r('src/main/expense-categories.js')
         }
       }

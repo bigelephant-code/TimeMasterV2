@@ -18,7 +18,7 @@ It is designed for people who want one account-free Windows workspace to answer 
 
 [![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.9` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
+> **Version and provenance:** `v0.1.3` preserves the original unsigned owner-produced installer. The current `0.1.10` Windows x64 version continues from the editable, buildable **source-equivalent reconstruction** derived from that artifact; it is not the lost original Vue source tree and is not claimed to reproduce 0.1.3 byte for byte. The installer is not Authenticode-signed. Use the actual assets and SHA-256 published on [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases). See the [recovery notes](docs/RECOVERY.md).
 
 ## Features
 
@@ -32,6 +32,16 @@ It is designed for people who want one account-free Windows workspace to answer 
 | Expense ledger | Date-based entries, corrections, history, and Excel reconciliation export |
 | Desktop widget | Date, lunar calendar, weather, milestones, focus state, main tasks, and today's matrix |
 | Local data | Atomic JSON writes, damaged-file preservation, automatic backups, and recovery |
+
+### 0.1.10 formal release (2026-08-13)
+
+- Adds clickable monthly rollover and completion totals below the month grid, with detailed records for each metric.
+- Recurring todos now retain a completed occurrence before advancing, so monthly completion totals remain auditable by task, date, list, and time.
+- Starting focus now flips the whole widget card into a prominent large countdown and cancel flips it back; expense-category buttons size to their labels instead of stretching “Goods” across a full row.
+
+<p align="center"><img src="docs/images/calendar-month-completions.png" width="760" alt="TimeMaster monthly completion summary and detailed records with fictional demo data"></p>
+<p align="center"><img src="docs/images/calendar-month-rollovers.png" width="760" alt="TimeMaster monthly rollover summary and detailed records with fictional demo data"></p>
+<p align="center"><img src="docs/images/widget-focus-active.png" width="360" alt="TimeMaster widget showing the high-contrast focus countdown after the card flip, with fictional demo data"></p>
 
 ### 0.1.9 formal release (2026-08-13)
 
@@ -89,7 +99,7 @@ All screenshots, including the desktop widget above, were captured in an isolate
 ## Privacy, security, and support
 
 - Tasks, focus records, goals, expenses, and settings stay in `%APPDATA%\timemaster-v2\` by default.
-- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.9; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management, rollover history, and the visual refresh add no network destination or third-party data sharing.
+- The app has no account system, ads, subscriptions, analytics, or telemetry. Weather remains the only intentionally network-backed feature in releases 0.1.3 through 0.1.10; when enabled, it sends a city-search string or rounded coordinates to Open-Meteo. Expense-category management, rollover/completion history, and the visual refresh add no network destination or third-party data sharing.
 - The main and widget renderers use Electron's renderer sandbox and context isolation, disable Node integration, and reach native capabilities through an explicit preload/IPC allowlist.
 - Read the [privacy notice](PRIVACY.md) for data flows and deletion, the [threat model](docs/THREAT_MODEL.md) for assumptions and residual risks, [support guidance](SUPPORT.md) for help, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 - The default branch is checked by Windows CI and CodeQL; Dependabot checks npm and GitHub Actions updates monthly. Automation does not replace human review or provide a security guarantee.
@@ -98,7 +108,7 @@ Local-first does not mean invulnerable: TimeMaster does not encrypt its applicat
 
 ## Installer integrity
 
-The formal `0.1.9` artifact is the Windows x64 NSIS installer `TimeMaster-Setup-0.1.9.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
+The formal `0.1.10` artifact is the Windows x64 NSIS installer `TimeMaster-Setup-0.1.10.exe`. It is **not Authenticode-signed**. Use only the actual installer supplied through a trusted channel and verify the SHA-256 published alongside that artifact. Version text in this README is not a substitute for an artifact hash and does not mean that an installer has already been uploaded to GitHub Releases.
 
 The original 0.1.3 artifact remains preserved as the recovery source and immutable reference. Its filename and SHA-256 are recorded below.
 
@@ -156,7 +166,7 @@ The smoke test uses explicitly isolated temporary `userData` and session directo
 ## Source and version boundaries
 
 ```text
-src/                       editable, buildable source-equivalent input for 0.1.9
+src/                       editable, buildable source-equivalent input for 0.1.10
 runtime/                   immutable golden reference extracted from the original 0.1.3 app.asar
 legacy/litecal-0.1.0/      historical modular LiteCal 0.1.0 source, for migration reference only
 tests/                     IPC and security contract tests

@@ -18,7 +18,7 @@
 
 [![从 GitHub Releases 下载](https://img.shields.io/badge/下载-GitHub%20Releases-0969da?style=for-the-badge&logo=github)](https://github.com/bigelephant-code/TimeMasterV2/releases/latest)
 
-> **版本与来源：** `v0.1.3` 保留项目所有者制作的原始、未签名 Windows 安装包。当前 `0.1.9` Windows x64 版本沿用从 0.1.3 产物重建的可编辑、可构建 **source-equivalent reconstruction**；它不是丢失的原始 Vue 源码，也不保证与 0.1.3 逐字节一致。安装包未经过 Authenticode 签名，实际下载内容与 SHA-256 以 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 附件为准。详见 [恢复记录](docs/RECOVERY.md)。
+> **版本与来源：** `v0.1.3` 保留项目所有者制作的原始、未签名 Windows 安装包。当前 `0.1.10` Windows x64 版本沿用从 0.1.3 产物重建的可编辑、可构建 **source-equivalent reconstruction**；它不是丢失的原始 Vue 源码，也不保证与 0.1.3 逐字节一致。安装包未经过 Authenticode 签名，实际下载内容与 SHA-256 以 [GitHub Releases](https://github.com/bigelephant-code/TimeMasterV2/releases) 附件为准。详见 [恢复记录](docs/RECOVERY.md)。
 
 ## 功能概览
 
@@ -32,6 +32,16 @@
 | 费用台账 | 按日期记账、历史明细、补录识别和 Excel 对账导出 |
 | 桌面小组件 | 日期、农历、天气、时间节点、专注、主任务和今日四象限 |
 | 本地数据 | JSON 原子写入、损坏文件留档、自动备份与恢复 |
+
+### 0.1.10 正式版（2026-08-13）
+
+- 月历底部增加“本月延期”和“本月完成”汇总，点击任一指标即可展开该月详细记录。
+- 重复待办进入下一周期前保留完成历史，延期和完成数字都可回溯到具体任务、日期、清单和时间。
+- 桌面小组件开始专注后整张卡片翻转为醒目的大字号倒计时，取消即可翻回；费用分类按钮按名称长度自适应，不再让“货款”占满整行。
+
+<p align="center"><img src="docs/images/calendar-month-completions.png" width="760" alt="时间大师月历底部的本月完成汇总与详细内容，使用虚构演示数据"></p>
+<p align="center"><img src="docs/images/calendar-month-rollovers.png" width="760" alt="时间大师月历底部的本月延期汇总与详细内容，使用虚构演示数据"></p>
+<p align="center"><img src="docs/images/widget-focus-active.png" width="360" alt="时间大师桌面小组件翻转后的高对比专注倒计时，使用虚构演示数据"></p>
 
 ### 0.1.9 正式版（2026-08-13）
 
@@ -89,7 +99,7 @@
 ## 隐私、安全与支持
 
 - 待办、专注记录、主任务、费用台账和设置默认保存在本机 `%APPDATA%\timemaster-v2\`。
-- 应用没有账号体系、广告、会员、分析或遥测上报。天气仍是 0.1.3—0.1.9 正式版中唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。费用分类管理、顺延历史和界面改版不增加联网目的地或第三方数据共享。
+- 应用没有账号体系、广告、会员、分析或遥测上报。天气仍是 0.1.3—0.1.10 正式版中唯一有意联网的功能；启用后会向 Open-Meteo 发送城市搜索文本或经过取整的经纬度。费用分类管理、延期/完成历史和界面改版不增加联网目的地或第三方数据共享。
 - 主窗口和小组件启用 Electron renderer sandbox 与 `contextIsolation`、关闭 Node 集成，并通过显式 preload/IPC 白名单访问原生能力。
 - 详细数据流、删除方式和联网边界见 [隐私说明](PRIVACY.md)；安全假设与剩余风险见 [威胁模型](docs/THREAT_MODEL.md)；使用帮助见 [支持说明](SUPPORT.md)；漏洞请按 [安全政策](SECURITY.md) 私下报告。
 - 默认分支由 Windows CI 和 CodeQL 自动检查；Dependabot 每月检查 npm 与 GitHub Actions 更新。自动检查不能替代人工审查，也不构成安全保证。
@@ -98,7 +108,7 @@
 
 ## 安装包完整性
 
-`0.1.9` 的正式产物为 Windows x64 NSIS 安装包 `TimeMaster-Setup-0.1.9.exe`，**未经过 Authenticode 签名**。请只使用可信来源提供的实际安装包，并核对与该产物一同发布的 SHA-256；本 README 不以版本文字代替实际文件哈希，也不表示安装包已经上传到 GitHub Release。
+`0.1.10` 的正式产物为 Windows x64 NSIS 安装包 `TimeMaster-Setup-0.1.10.exe`，**未经过 Authenticode 签名**。请只使用可信来源提供的实际安装包，并核对与该产物一同发布的 SHA-256；本 README 不以版本文字代替实际文件哈希，也不表示安装包已经上传到 GitHub Release。
 
 原始 0.1.3 产物继续作为恢复来源和不可变参考保留。其文件名与 SHA-256 如下：
 
@@ -156,7 +166,7 @@ smoke test 使用显式隔离的临时 `userData` 与 session 目录，不读取
 ## 目录与版本边界
 
 ```text
-src/                       0.1.9 的可编辑、可构建 source-equivalent 输入
+src/                       0.1.10 的可编辑、可构建 source-equivalent 输入
 runtime/                   从原始 0.1.3 app.asar 提取的不可变黄金参考
 legacy/litecal-0.1.0/      历史 LiteCal 0.1.0 模块化源码，仅作迁移参考
 tests/                     IPC 与安全契约测试

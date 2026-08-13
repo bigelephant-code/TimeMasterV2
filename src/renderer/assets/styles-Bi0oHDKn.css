@@ -371,6 +371,14 @@ select:focus-visible,
 .calendar-wrap.no-panel {
   grid-template-columns: 1fr;
 }
+.calendar-month-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .grid-head {
   display: grid;
@@ -674,6 +682,201 @@ select:focus-visible,
   gap: 4px;
   min-height: 0;
 }
+
+/* 月历底部执行复盘：延期和完成各自成为可点击账本。 */
+.calendar-month-summary {
+  flex: 0 0 56px;
+  display: grid;
+  grid-template-columns: minmax(126px, 0.48fr) minmax(250px, 1fr);
+  align-items: stretch;
+  gap: 1px;
+  min-width: 0;
+  border-top: 1px solid var(--border-soft);
+  background: var(--border-soft);
+}
+.calendar-month-summary-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg) 96%, var(--accent));
+}
+.calendar-month-summary-intro span,
+.calendar-month-summary-intro b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-month-summary-intro span {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 680;
+}
+.calendar-month-summary-intro b {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-month-summary-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  min-width: 0;
+}
+.calendar-month-summary-buttons button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  text-align: left;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+.calendar-month-summary-buttons button:hover,
+.calendar-month-summary-buttons button.active {
+  background: var(--bg-elev);
+}
+.calendar-month-summary-buttons button.active {
+  box-shadow: inset 0 3px 0 currentColor;
+}
+.calendar-month-summary-buttons span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-month-summary-buttons strong {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-month-summary-buttons em {
+  color: var(--text-faint);
+  font-size: 9px;
+  font-style: normal;
+}
+.calendar-month-summary-buttons .rollover { color: var(--warn); }
+.calendar-month-summary-buttons .completed { color: var(--ok); }
+.calendar-month-detail {
+  position: absolute;
+  z-index: 9;
+  right: 8px;
+  bottom: 64px;
+  left: 8px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(276px, calc(100% - 76px));
+  min-height: 132px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--bg-elev) 97%, transparent);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.48), inset 3px 0 0 var(--accent);
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+}
+.calendar-month-detail.rollover {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--border));
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.48), inset 3px 0 0 var(--warn);
+}
+.calendar-month-detail.completed {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--border));
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.48), inset 3px 0 0 var(--ok);
+}
+.calendar-month-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 9px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: radial-gradient(circle at 12% 0%, var(--panel-glow), transparent 72%);
+}
+.calendar-month-detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.calendar-month-detail-title span {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-month-detail-title b {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-month-detail-head > button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+}
+.calendar-month-detail-head > button:hover { color: var(--text); background: var(--bg-hover); }
+.calendar-month-detail-rows {
+  min-height: 0;
+  padding: 5px 8px 8px;
+  overflow-y: auto;
+}
+.calendar-month-detail-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 8px 7px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.calendar-month-detail-row:last-child { border-bottom: 0; }
+.calendar-month-detail-date {
+  display: grid;
+  place-items: center;
+  min-height: 28px;
+  border-radius: 7px;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  font-size: 9px;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-month-detail.rollover .calendar-month-detail-date { color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, var(--bg-soft)); }
+.calendar-month-detail.completed .calendar-month-detail-date { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--bg-soft)); }
+.calendar-month-detail-copy { min-width: 0; }
+.calendar-month-detail-name,
+.calendar-month-detail-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-month-detail-name { color: var(--text); font-size: 12px; font-weight: 650; }
+.calendar-month-detail-meta { margin-top: 3px; color: var(--text-faint); font-size: 9px; }
+.calendar-month-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 74px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
 .rollover-history {
   display: grid;
   gap: 7px;
@@ -755,6 +958,75 @@ select:focus-visible,
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
+.completion-history {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 4px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--ok) 28%, var(--border-soft));
+  border-radius: 10px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--ok) 7%, var(--bg-soft)), var(--bg-soft));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ok) 75%, transparent);
+  overflow: hidden;
+}
+.completion-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 650;
+}
+.completion-history-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.completion-history-head b {
+  flex: none;
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  text-align: center;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.completion-history-rows { display: grid; gap: 5px; }
+.completion-record {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--ok) 15%, var(--border-soft));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+}
+.completion-record-state {
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 11%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.completion-record-copy { min-width: 0; }
+.completion-record-title,
+.completion-record-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.completion-record-title { color: var(--text); font-size: 12px; font-weight: 650; }
+.completion-record-meta { margin-top: 3px; color: var(--text-faint); font-size: 9px; font-variant-numeric: tabular-nums; }
 .day-panel .quick {
   padding: 8px;
   border-top: 1px solid var(--border-soft);
@@ -1398,6 +1670,11 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
   .nav-item { gap: 8px; padding-inline: 9px; }
   .calendar-wrap { grid-template-columns: minmax(0, 1fr) 250px; }
   .day-panel { width: 250px; }
+  .calendar-month-summary { grid-template-columns: 1fr; }
+  .calendar-month-summary-intro { display: none; }
+  .calendar-month-summary-buttons button { padding-inline: 9px; }
+  .calendar-month-summary-buttons strong { font-size: 20px; }
+  .calendar-month-detail { right: 5px; bottom: 61px; left: 5px; }
   .cell { padding: 4px; }
   .month-todo-summary { gap: 3px; padding: 4px 3px; }
   .month-todo-status { gap: 2px; }
