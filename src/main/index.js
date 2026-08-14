@@ -25,7 +25,7 @@ const {
   pruneRemoteReminderOutbox,
   dueRemoteReminders
 } = require("./remote-reminders.js");
-const { deliverDirectReminder } = require("./gateway-direct-send.js");
+const { deliverDirectReminder, probeDirectGateway } = require("./gateway-direct-send.js");
 const {
   MAX_STEPS_PER_BATCH,
   promotedStepIds,
@@ -40,6 +40,7 @@ const {
   normalizeAiTaskCoachConfig,
   taskSourceHash,
   normalizeTaskPlan,
+  buildTaskPlanMessage,
   buildTaskPlanRequest,
   buildDayPlanRequest,
   requestOpenClawPlan,
@@ -258,6 +259,7 @@ function defaultSettings() {
       agentId: "timemaster-coach",
       includeNote: false,
       autoPlanNewTodos: false,
+      sendPlanToQq: false,
       workday: { start: "09:00", end: "18:00" },
       lunch: { start: "12:00", end: "13:30" },
       bufferMinutes: 10
@@ -422,6 +424,7 @@ function initStore() {
     agentId: normalizedAiTaskCoach.agentId,
     includeNote: normalizedAiTaskCoach.includeNote,
     autoPlanNewTodos: normalizedAiTaskCoach.autoPlanNewTodos,
+    sendPlanToQq: normalizedAiTaskCoach.sendPlanToQq,
     workday: normalizedAiTaskCoach.workday,
     lunch: normalizedAiTaskCoach.lunch,
     bufferMinutes: normalizedAiTaskCoach.bufferMinutes
@@ -648,14 +651,15 @@ function ensureMainWindowSender(event) {
 }
 // direct 模式把提醒原文交给 Gateway 的 send 方法，不经过 Agent 与模型复述；
 // agent 模式保留原有 /hooks/agent 行为。两者返回同一套 classification。
-function deliverRemoteReminder(config, todo, occurrenceKey, eventId) {
+function deliverRemoteReminder(config, todo, occurrenceKey, eventId, text = "") {
+  const message = text || buildReminderText(todo, { includeNote: config.includeNote });
   if (config.mode === "direct") {
     return deliverDirectReminder({
       endpoint: config.endpoint,
       token: config.token,
       target: config.target,
       accountId: config.accountId,
-      message: buildReminderText(todo, { includeNote: config.includeNote }),
+      message,
       eventId
     }, { clientVersion: electron.app.getVersion() });
   }
@@ -663,7 +667,7 @@ function deliverRemoteReminder(config, todo, occurrenceKey, eventId) {
     endpoint: config.endpoint,
     token: config.token,
     eventId,
-    payload: buildOpenClawPayload(todo, config, { occurrenceKey, eventId })
+    payload: buildOpenClawPayload(todo, config, { occurrenceKey, eventId, text: message })
   });
 }
 function remoteReminderConfigWithToken() {
@@ -673,8 +677,26 @@ function remoteReminderConfigWithToken() {
   if (!config.token) throw new Error("尚未保存 OpenClaw Hook Token。");
   return config;
 }
+const DIRECT_PROBE_MESSAGES = {
+  gateway_auth_failed: "这个 Token 不被该 Gateway 接受。直投模式需要该 Gateway 的 operator Token，取自 .openclaw\\secrets\\timemaster.json 的 DEFAULT_GATEWAY_TOKEN，与 AI 任务教练用的那个不是同一个。",
+  connection_unavailable: "连不上本机 OpenClaw Gateway，请确认它正在运行。",
+  timeout: "连接 OpenClaw 超时，请确认 Gateway 正在运行。",
+  send_unsupported: "该 Gateway 不提供 send 方法，无法直投。",
+  invalid_endpoint: "Gateway 地址无效。",
+  missing_token: "尚未保存 Token。"
+};
 async function probeRemoteReminderConnection() {
   const config = remoteReminderConfigWithToken();
+  // 连接检查必须走投递真正会用的路径：直投用 operator 凭据，拿它去敲
+  // /hooks/agent 只会得到 401，让填对了的用户以为自己填错。
+  if (config.mode === "direct") {
+    const result = await probeDirectGateway(
+      { endpoint: config.endpoint, token: config.token },
+      { clientVersion: electron.app.getVersion() }
+    );
+    if (result.ok) return { ok: true, message: "Gateway 已认证，直投可用；本次未发送任何消息。" };
+    throw new Error(DIRECT_PROBE_MESSAGES[result.reason] || "未能确认直投配置。");
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20 * 1e3);
   try {
@@ -770,8 +792,9 @@ function publicAiTaskCoachConfig() {
       agentId: normalized.agentId,
       includeNote: normalized.includeNote,
       autoPlanNewTodos: normalized.autoPlanNewTodos,
-      workday: normalized.workday,
-      lunch: normalized.lunch,
+      sendPlanToQq: normalized.sendPlanToQq,
+      // 只回传扁平字段。此前同时回传嵌套的 workday/lunch，renderer 把整个
+      // config 灌进 ref 后它们变成 reactive Proxy，保存时结构化克隆直接失败。
       workdayStart: normalized.workday.start,
       workdayEnd: normalized.workday.end,
       lunchStart: normalized.lunch.start,
@@ -801,6 +824,7 @@ function saveAiTaskCoachConfig(input = {}) {
     agentId: rawAgentId,
     includeNote: input.includeNote,
     autoPlanNewTodos: input.autoPlanNewTodos,
+    sendPlanToQq: input.sendPlanToQq,
     workday: {
       start: input.workdayStart ?? input.workday?.start,
       end: input.workdayEnd ?? input.workday?.end
@@ -822,6 +846,7 @@ function saveAiTaskCoachConfig(input = {}) {
     agentId: normalized.agentId,
     includeNote: normalized.includeNote,
     autoPlanNewTodos: normalized.autoPlanNewTodos,
+    sendPlanToQq: normalized.sendPlanToQq,
     workday: normalized.workday,
     lunch: normalized.lunch,
     bufferMinutes: normalized.bufferMinutes
@@ -999,6 +1024,55 @@ async function planTodoWithAi(todoId) {
     flushNow();
     return { ok: true, plan, message: "任务拆解草案已生成，未自动修改待办时间。" };
   });
+}
+// 自动拆解整个下沉到主进程：待办来自哪个窗口、哪条创建路径都不再影响它。
+// 此前这个判断放在 renderer，四条创建路径各写一遍，已经出过两次 bug。
+function autoPlanNewTodoEnabled() {
+  const config = normalizeAiTaskCoachConfig(settings.aiTaskCoach);
+  return config.enabled === true && config.autoPlanNewTodos === true && !isSmokeTest;
+}
+function planQqTargetConfig() {
+  let token = "";
+  try {
+    token = readRemoteReminderToken();
+  } catch {
+    return null;
+  }
+  const config = normalizeRemoteReminderConfig({ ...settings.remoteReminder, token });
+  return config.enabled && config.token && config.target ? config : null;
+}
+async function autoPlanCreatedTodo(todo) {
+  if (!todo?.id || !autoPlanNewTodoEnabled()) return;
+  let plan = null;
+  try {
+    const result = await planTodoWithAi(todo.id);
+    plan = result?.ok ? result.plan : null;
+  } catch (error) {
+    console.warn("[ai-auto-plan] 自动拆解失败：", String(error?.message || error));
+    return;
+  }
+  if (!plan) return;
+  pushSnapshot();
+  if (normalizeAiTaskCoachConfig(settings.aiTaskCoach).sendPlanToQq !== true) return;
+  const qq = planQqTargetConfig();
+  if (!qq) return;
+  const live = data.todos.find((row) => row.id === todo.id);
+  if (!live) return;
+  try {
+    const eventId = `tmp-${String(todo.id).replace(/[^A-Za-z0-9._:-]/g, "")}-${plan.generatedAt}`.slice(0, 200);
+    const result = await deliverRemoteReminder(
+      qq,
+      live,
+      createReminderOccurrenceKey(live),
+      eventId,
+      buildTaskPlanMessage(live, plan)
+    );
+    if (result.classification !== "accepted") {
+      console.warn("[ai-auto-plan] 拆解未推送到 QQ：", result.classification, result.reason || "");
+    }
+  } catch (error) {
+    console.warn("[ai-auto-plan] 推送 QQ 失败：", String(error?.message || error));
+  }
 }
 function todosForAiDay(date) {
   return data.todos.filter((todo) => !todo.done && (todo.date === date || !todo.date && [1, 2].includes(Number(todo.quadrant))));
@@ -3251,6 +3325,9 @@ function registerIpc() {
   handleTrusted("todo:create", (_e, input) => {
     const r = repo.createTodo(input);
     pushSnapshot();
+    // 后台生成，不阻塞创建，也不把失败带回渲染进程：待办本身已经存好了。
+    // 只挂在这条 IPC 上，因此 AI 步骤提升出的子待办与冒烟测试数据不会触发。
+    void autoPlanCreatedTodo(r);
     return r;
   });
   handleTrusted("todo:update", (_e, id, patch) => {

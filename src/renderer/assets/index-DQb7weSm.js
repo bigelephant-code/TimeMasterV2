@@ -12,7 +12,14 @@ const aiCoachUi = ref({
   notice: ""
 });
 const aiCoachConfig = () => state.aiCoachConfig?.config || state.aiCoachConfig || {};
-const aiCoachEnabled = () => Boolean(aiCoachConfig().enabled);
+// 同样以 state.settings.aiTaskCoach 为准。state.aiCoachConfig 只在 initStore 里
+// 赋值一次，被 isMainRenderer 门控且错误被 catch 吞成 null，之后再不刷新；
+// 用它判断「AI 是否可用」会让按钮消失、自动拆解静默失效且没有任何报错。
+const aiCoachEnabled = () => {
+  const fromSettings = state.settings?.aiTaskCoach;
+  if (fromSettings && typeof fromSettings.enabled === "boolean") return fromSettings.enabled === true;
+  return Boolean(aiCoachConfig().enabled);
+};
 const coachArray = (value) => Array.isArray(value) ? value : [];
 function coachTaskPlan(todoId) {
   const plans = state.aiTaskCoach?.taskPlans;
@@ -2884,7 +2891,6 @@ const _sfc_main$3 = {
   setup(__props) {
     const draft = ref(blank());
     const titleEl = ref(null);
-    const coachAfterSave = ref(false);
     function blank() {
       return {
         id: null,
@@ -2911,10 +2917,6 @@ const _sfc_main$3 = {
           startTime: v.startTime || "",
           endTime: v.endTime ?? v.time ?? ""
         };
-        // The global option is only a default for a newly created task. Editing
-        // an existing task never sends it again unless the user explicitly
-        // enables this per-save switch.
-        coachAfterSave.value = Boolean(!v.id && aiCoachEnabled() && aiCoachConfig().autoPlanNewTodos);
       },
       { immediate: true }
     );
@@ -2941,7 +2943,6 @@ const _sfc_main$3 = {
       if (!payload.startTime && !payload.endTime) payload.remindBefore = null;
       const savedTodo = isEdit.value ? await actions.updateTodo(draft.value.id, payload) : await actions.createTodo(payload);
       actions.closeEditor();
-      if (savedTodo?.id && coachAfterSave.value && aiCoachEnabled()) await openTaskCoach(savedTodo, true);
     }
     async function del() {
       if (!isEdit.value) return actions.closeEditor();
@@ -3113,22 +3114,15 @@ const _sfc_main$3 = {
               }), 128))
             ])
           ]),
-          aiCoachEnabled() ? createBaseVNode("button", {
-            type: "button",
-            class: normalizeClass(["coach-after-save", { on: coachAfterSave.value }]),
-            role: "switch",
-            "aria-checked": coachAfterSave.value,
-            onClick: () => coachAfterSave.value = !coachAfterSave.value
-          }, [
+          aiCoachEnabled() ? createBaseVNode("div", { class: "coach-after-save" }, [
             createBaseVNode("span", { class: "coach-after-save-mark" }, [
               createVNode(_sfc_main$b, { name: "route", size: 15 })
             ]),
             createBaseVNode("span", { class: "coach-after-save-copy" }, [
-              createBaseVNode("strong", null, "保存后让 AI 拆解"),
-              createBaseVNode("small", null, aiCoachConfig().includeNote ? "将发送标题、时间、优先级、四象限和备注" : "仅发送任务信息，备注不会发送")
-            ]),
-            createBaseVNode("span", { class: normalizeClass(["toggle", { on: coachAfterSave.value }]) })
-          ], 10, ["aria-checked"]) : createCommentVNode("", true),
+              createBaseVNode("strong", null, "保存后自动生成 AI 拆解"),
+              createBaseVNode("small", null, aiCoachConfig().includeNote ? "后台生成，将发送标题、时间、优先级、四象限和备注" : "后台生成，仅发送任务信息，备注不会发送", 1)
+            ])
+          ]) : createCommentVNode("", true),
           createBaseVNode("div", _hoisted_23, [
             isEdit.value ? (openBlock(), createElementBlock("button", {
               key: 0,
@@ -3533,6 +3527,7 @@ const AI_COACH_DEFAULT_CONFIG = {
   agentId: "timemaster-coach",
   includeNote: false,
   autoPlanNewTodos: false,
+  sendPlanToQq: false,
   workdayStart: "09:00",
   workdayEnd: "18:00",
   lunchStart: "12:00",
@@ -3577,7 +3572,21 @@ const AICoachSettings = {
       busy.value = "save";
       status.value = { kind: "hint", text: "正在保存 AI 任务教练配置…" };
       try {
-        const payload = { ...draft.value };
+        // 逐字段构造并强制转成原始值：draft 是 ref，任何嵌套对象都会是
+        // reactive Proxy，直接展开送进 IPC 会触发「An object could not be cloned」。
+        const payload = {
+          enabled: Boolean(draft.value.enabled),
+          gatewayUrl: String(draft.value.gatewayUrl || "").trim(),
+          agentId: String(draft.value.agentId || "").trim(),
+          includeNote: Boolean(draft.value.includeNote),
+          autoPlanNewTodos: Boolean(draft.value.autoPlanNewTodos),
+          sendPlanToQq: Boolean(draft.value.sendPlanToQq),
+          workdayStart: String(draft.value.workdayStart || ""),
+          workdayEnd: String(draft.value.workdayEnd || ""),
+          lunchStart: String(draft.value.lunchStart || ""),
+          lunchEnd: String(draft.value.lunchEnd || ""),
+          bufferMinutes: Number(draft.value.bufferMinutes) || 0
+        };
         if (token.value.trim()) payload.token = token.value.trim();
         const result = await actions.saveAICoachConfig(payload);
         if (!result?.ok) throw new Error(result?.message || "配置未保存");
@@ -3650,7 +3659,7 @@ const AICoachSettings = {
           createBaseVNode("strong", null, "AI 任务教练"),
           createBaseVNode("small", null, "把模糊待办变成材料、步骤和可撤销的今日安排")
         ]),
-        createBaseVNode("span", { class: normalizeClass(["coach-settings-badge", { ready: tokenConfigured.value }]) }, tokenConfigured.value ? "凭据已保存" : "待配置", 2),
+        createBaseVNode("span", { class: normalizeClass(["coach-settings-badge", { ready: tokenConfigured.value }]) }, tokenConfigured.value ? "凭据已保存" : "待配置", 3),
         createBaseVNode("button", {
           type: "button",
           class: normalizeClass(["toggle", { on: draft.value.enabled }]),
@@ -3689,7 +3698,8 @@ const AICoachSettings = {
         ]),
         createBaseVNode("div", { class: "coach-settings-options" }, [
           switchRow("发送待办备注", "默认关闭；开启后备注会随请求交给 OpenClaw", "includeNote"),
-          switchRow("新待办自动准备拆解", "保存时仍显示明确开关，可随时取消", "autoPlanNewTodos")
+          switchRow("新待办自动准备拆解", "任何方式新建的待办都会在后台生成拆解草案，不弹窗、不改动待办时间", "autoPlanNewTodos"),
+          switchRow("把拆解推送到 QQ", "仅推送新建时自动生成的拆解：标题、下一步和步骤清单。需要先配置并启用 QQ Bot 主提醒", "sendPlanToQq")
         ]),
         createBaseVNode("div", { class: "coach-settings-time" }, [
           createBaseVNode("div", { class: "coach-settings-time-title" }, [createBaseVNode("strong", null, "默认可安排时间"), createBaseVNode("small", null, "AI 不会覆盖已经设置的固定时间")]),
@@ -3702,10 +3712,10 @@ const AICoachSettings = {
           ])
         ]),
         createBaseVNode("div", { class: "coach-settings-actions" }, [
-          createBaseVNode("button", { type: "button", class: "primary", disabled: Boolean(busy.value) || !dirty.value && !token.value.trim(), onClick: save }, busy.value === "save" ? "保存中…" : "保存配置", 8, ["disabled"]),
-          createBaseVNode("button", { type: "button", class: "ghost", disabled: Boolean(busy.value) || !draft.value.enabled, onClick: probe }, busy.value === "probe" ? "检查中…" : "检查连接", 8, ["disabled"])
+          createBaseVNode("button", { type: "button", class: "primary", disabled: Boolean(busy.value) || !dirty.value && !token.value.trim(), onClick: save }, busy.value === "save" ? "保存中…" : "保存配置", 9, ["disabled"]),
+          createBaseVNode("button", { type: "button", class: "ghost", disabled: Boolean(busy.value) || !draft.value.enabled, onClick: probe }, busy.value === "probe" ? "检查中…" : "检查连接", 9, ["disabled"])
         ]),
-        createBaseVNode("div", { class: normalizeClass(["coach-settings-status", status.value.kind]) , role: status.value.kind === "error" ? "alert" : "status", "aria-live": "polite" }, status.value.text || " ", 10, ["role"])
+        createBaseVNode("div", { class: normalizeClass(["coach-settings-status", status.value.kind]) , role: status.value.kind === "error" ? "alert" : "status", "aria-live": "polite" }, status.value.text || " ", 11, ["role"])
       ])
     ], 10, ["aria-busy"]);
   }
@@ -3807,7 +3817,22 @@ const RemoteReminderSettings = {
       }
     };
     const runSavedAction = async (method, successText, workingText) => {
-      if (busy.value || loading.value || dirty.value || !tokenConfigured.value) return;
+      // 前置条件不满足时必须说明原因。此前是静默 return：按钮点了毫无反应，
+      // 用户既不知道被拦下了，也不知道该先做什么。
+      if (busy.value || loading.value) return;
+      if (dirty.value) {
+        status.value = { kind: "error", text: "配置有未保存的改动，请先点「保存配置」。" };
+        return;
+      }
+      if (!tokenConfigured.value) {
+        status.value = {
+          kind: "error",
+          text: draft.value.mode === "direct"
+            ? "尚未保存可用的 Token。直投需要该 Gateway 的 operator Token（.openclaw\\secrets\\timemaster.json 的 DEFAULT_GATEWAY_TOKEN）。"
+            : "尚未保存可用的 Hook Token，请填写后先保存配置。"
+        };
+        return;
+      }
       busy.value = method;
       status.value = { kind: "hint", text: workingText };
       try {
@@ -3823,7 +3848,9 @@ const RemoteReminderSettings = {
         busy.value = "";
       }
     };
-    const savedActionsReady = () => !loading.value && !busy.value && !dirty.value && tokenConfigured.value;
+    // 只在真正无法响应时禁用。以前把「未保存」「无 Token」也算进去，按钮变灰又
+    // 没有可见提示，结果是用户无从判断卡在哪一步。
+    const savedActionsReady = () => !loading.value && !busy.value;
     const savedActionTitle = () => dirty.value ? "请先保存配置" : tokenConfigured.value ? "" : draft.value.mode === "direct" ? "请先填写 Gateway operator Token 并保存配置" : "请先填写 Hook Token 并保存配置";
     onMounted(load);
     return (_ctx, _cache) => {
@@ -3843,7 +3870,7 @@ const RemoteReminderSettings = {
               createBaseVNode("span", null, "QQ Bot 主提醒"),
               createBaseVNode("span", {
                 class: normalizeClass(["remote-reminder-badge", { ready: tokenConfigured.value }])
-              }, loading.value ? "读取中" : draft.value.enabled ? tokenConfigured.value ? "已配置" : "待配置" : "未启用", 2)
+              }, loading.value ? "读取中" : draft.value.enabled ? tokenConfigured.value ? "已配置" : "待配置" : "未启用", 3)
             ]),
             createBaseVNode("div", { class: "remote-reminder-desc" }, "待办触发时优先发 QQ，并独立尝试 Windows 通知")
           ]),
@@ -3894,7 +3921,7 @@ const RemoteReminderSettings = {
               }, null, 40, ["value", "placeholder", "disabled"]),
               createBaseVNode("div", {
                 class: normalizeClass(["remote-reminder-field-hint", { secure: tokenConfigured.value }])
-              }, draft.value.mode === "direct" ? "直投使用该 Gateway 的 operator Token；若此前保存的是 Hook Token，请重新填写" : tokenConfigured.value ? "时间大师副本已加密保存，留空表示不更改" : "时间大师保存的副本会加密，保存后不再回显", 2)
+              }, draft.value.mode === "direct" ? "直投使用该 Gateway 的 operator Token；若此前保存的是 Hook Token，请重新填写" : tokenConfigured.value ? "时间大师副本已加密保存，留空表示不更改" : "时间大师保存的副本会加密，保存后不再回显", 3)
             ]),
             createBaseVNode("div", { class: "field remote-reminder-field" }, [
               createBaseVNode("label", { for: "remote-qq-target" }, "QQ 目标"),
@@ -3992,7 +4019,10 @@ const RemoteReminderSettings = {
           class: normalizeClass(["remote-reminder-status", status.value.kind || "idle"]),
           role: status.value.kind === "error" ? "alert" : "status",
           "aria-live": status.value.kind === "error" ? "assertive" : "polite"
-        }, status.value.text || " ", 10, ["role", "aria-live"])
+          // patchFlag 必须含 TEXT(1)：这张卡的根节点是 block，更新只遍历
+          // dynamicChildren，缺 TEXT 时这行文字会冻在首次渲染的空串上——
+          // 保存成功、保存失败、检查结果，这张卡说过的每句话都不会显示。
+        }, status.value.text || " ", 11, ["role", "aria-live"])
       ], 10, ["aria-busy"]);
     };
   }

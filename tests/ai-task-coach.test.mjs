@@ -13,6 +13,7 @@ const {
   normalizeAiTaskCoachConfig,
   taskSourceHash,
   normalizeTaskPlan,
+  buildTaskPlanMessage,
   buildTaskPlanRequest,
   buildDayPlanRequest,
   extractFunctionCall,
@@ -85,6 +86,7 @@ test('config accepts only the exact loopback HTTP Responses endpoint and clamps 
     agentId: 'timemaster-coach',
     includeNote: false,
     autoPlanNewTodos: false,
+    sendPlanToQq: false,
     workday: { start: '09:00', end: '18:00' },
     lunch: { start: '12:00', end: '13:00' },
     bufferMinutes: 10
@@ -191,12 +193,70 @@ test('task-plan normalization caps content and rejects non-HTTPS or credential-b
   assert.equal(progressed.steps[0].done, true)
   assert.equal(plan.officialLinks[0].url, 'https://seller.aliexpress.com/')
 
-  for (const url of ['http://seller.aliexpress.com/', 'file:///C:/secret', 'javascript:alert(1)', 'https://user:pass@example.com/']) {
-    assert.throws(() => normalizeTaskPlan(rawTaskPlan({
+  // 安全属性是「不合格的链接绝不出现在界面上」。丢弃同样满足它，而且不会因为
+  // 一个可选字段报废整份可用的拆解——私人事务常常没有官网，模型会用
+  // 「班级群通知」这类来源占位并把 url 留空。
+  for (const url of ['http://seller.aliexpress.com/', 'file:///C:/secret', 'javascript:alert(1)', 'https://user:pass@example.com/', '', '   ']) {
+    const dropped = normalizeTaskPlan(rawTaskPlan({
       officialLinks: [{ label: 'bad', url, purpose: 'bad' }]
-    }), { todoId: 'todo-1', sourceHash }), /链接/)
+    }), { todoId: 'todo-1', sourceHash })
+    assert.deepEqual(dropped.officialLinks, [], JSON.stringify(url))
   }
+  // 合格的链接不受影响，混在一起时只丢不合格的那条。
+  const mixed = normalizeTaskPlan(rawTaskPlan({
+    officialLinks: [
+      { label: '', url: 'https://example.com/a', purpose: '' },
+      { label: 'bad', url: 'http://example.com/b', purpose: '' }
+    ]
+  }), { todoId: 'todo-1', sourceHash })
+  assert.equal(mixed.officialLinks.length, 1)
+  assert.equal(mixed.officialLinks[0].url, 'https://example.com/a')
+  assert.equal(mixed.officialLinks[0].label, 'example.com', '缺标题时回退到主机名而不是报错')
+
+  // 列表里的空白项与无标题的步骤同样丢弃而非报废整份方案。
+  const noisy = normalizeTaskPlan(rawTaskPlan({
+    questions: ['真问题', '', '   '],
+    cautions: [''],
+    steps: [{ title: '', detail: 'x', estimatedMinutes: 5 }, { title: '有效步骤', detail: '', estimatedMinutes: 5 }]
+  }), { todoId: 'todo-1', sourceHash })
+  assert.deepEqual(noisy.questions, ['真问题'])
+  assert.deepEqual(noisy.cautions, [])
+  assert.equal(noisy.steps.length, 1)
+  assert.equal(noisy.steps[0].title, '有效步骤')
+
   assert.throws(() => normalizeTaskPlan(rawTaskPlan({ steps: [] }), { todoId: 'todo-1', sourceHash }), /至少需要一个/)
+  // 全部步骤都没有标题时才算真正失败。
+  assert.throws(() => normalizeTaskPlan(rawTaskPlan({
+    steps: [{ title: '  ', detail: 'x', estimatedMinutes: 5 }]
+  }), { todoId: 'todo-1', sourceHash }), /至少需要一个/)
+})
+
+test('the QQ push carries the actionable part of a plan and stays within one message', () => {
+  const plan = normalizeTaskPlan(rawTaskPlan(), { todoId: 'todo-1', sourceHash: taskSourceHash(baseTodo()) })
+  const message = buildTaskPlanMessage({ title: '开通速卖通店铺' }, plan)
+
+  assert.match(message, /^时间大师 · AI 拆解：开通速卖通店铺/)
+  assert.match(message, /下一步：/)
+  assert.match(message, /^1\. .+（约 \d+ 分钟）$/m)
+  assert.match(message, /合计预估 \d+ 分钟/)
+  // 摘要、待确认问题与注意事项留在应用里，手机上只要能照着做的部分。
+  assert.doesNotMatch(message, /需要你确认|注意事项/)
+
+  // 没有标题的步骤不占编号位，也不会输出空行。
+  const sparse = buildTaskPlanMessage({ title: 'T' }, { steps: [{ title: '', estimatedMinutes: 5 }, { title: '真步骤', estimatedMinutes: 7 }] })
+  assert.match(sparse, /2\. 真步骤（约 7 分钟）/)
+  assert.doesNotMatch(sparse, /^1\. （/m)
+
+  // 超长内容必须截断到单条消息以内，不能把上限交给 QQ 去拒绝。
+  const huge = buildTaskPlanMessage({ title: 'T' }, {
+    nextAction: 'N',
+    steps: Array.from({ length: 30 }, (_, index) => ({ title: '步'.repeat(100), estimatedMinutes: index + 1 }))
+  }, { maxLength: 300 })
+  assert.equal(huge.length, 300)
+  assert.match(huge, /…$/)
+
+  // 无标题待办不能产出空标题行。
+  assert.match(buildTaskPlanMessage({}, { steps: [] }), /未命名待办/)
 })
 
 test('OpenClaw delivery uses bearer auth, agent routing, no redirects and the 90 second abort', async () => {

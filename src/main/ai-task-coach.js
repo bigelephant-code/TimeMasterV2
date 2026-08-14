@@ -98,6 +98,9 @@ function normalizeAiTaskCoachConfig(input = {}) {
     agentId,
     includeNote: input.includeNote === true,
     autoPlanNewTodos: input.autoPlanNewTodos === true,
+    // 拆解完成后把步骤推送到已配置的 QQ 通道。默认关闭：这是一次外发，
+    // 必须由用户显式开启，不能被别的开关顺带打开。
+    sendPlanToQq: input.sendPlanToQq === true,
     workday,
     lunch,
     bufferMinutes: Math.min(60, Math.max(0, Math.round(Number(input.bufferMinutes ?? input.buffer ?? 10) || 0)))
@@ -122,22 +125,24 @@ function taskSourceHash(todo, { includeNote = false } = {}) {
   return crypto.createHash("sha256").update(stableJson(source)).digest("hex");
 }
 
+// 列表里的空白项是模型的噪音，丢弃即可；为此报废整份方案只会让用户白等一次生成。
 function normalizeStringArray(value, { maxItems, maxLength }) {
   if (!Array.isArray(value)) throw new Error("AI 返回的列表字段格式无效。");
-  return value.slice(0, maxItems).map((item) => cleanText(item, maxLength, { required: true }));
+  return value.slice(0, maxItems).map((item) => cleanText(item, maxLength)).filter(Boolean);
 }
 
-function normalizeHttpsUrl(value) {
-  const text = cleanText(value, 2048, { required: true });
+// 返回规范化后的 HTTPS 地址，任何不合格的输入一律返回 null 交由调用方丢弃。
+// 安全约束是「不合格的链接绝不出现在界面上」，丢弃比抛错更能满足它，
+// 同时不会因为一个可选字段毁掉整份可用的拆解。
+function safeHttpsUrl(value) {
+  const text = cleanText(value, 2048);
+  if (!text) return null;
   try {
     const url = new URL(text);
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
-      throw new Error("AI 返回的链接必须是无账号信息的 HTTPS 地址。");
-    }
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
     return url.toString();
-  } catch (error) {
-    if (/必须是/.test(String(error?.message || ""))) throw error;
-    throw new Error("AI 返回了无效的官方链接。");
+  } catch {
+    return null;
   }
 }
 
@@ -148,23 +153,31 @@ function normalizeTaskPlan(raw, { todoId, sourceHash, generatedAt = Date.now() }
   if (!HASH_RE.test(normalizedHash)) throw new Error("AI 任务方案缺少有效的来源指纹。");
   if (!Array.isArray(raw.steps) || raw.steps.length === 0) throw new Error("AI 任务方案至少需要一个执行步骤。");
   if (!Array.isArray(raw.officialLinks)) throw new Error("AI 任务方案缺少官方链接列表。");
-  const steps = raw.steps.slice(0, 30).map((step, index) => {
+  // 没有标题的步骤没有执行价值，丢弃它而不是丢弃整份方案；一个都不剩才算失败。
+  const steps = raw.steps.slice(0, 30).flatMap((step, index) => {
     if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error("AI 返回了无效的步骤。");
-    return {
+    const title = cleanText(step.title, 120);
+    if (!title) return [];
+    return [{
       id: `step-${index + 1}`,
-      title: cleanText(step.title, 120, { required: true }),
+      title,
       detail: cleanText(step.detail, 800),
       estimatedMinutes: normalizedMinutes(step.estimatedMinutes, { min: 1, max: 24 * 60 }),
       done: step.done === true
-    };
+    }];
   });
-  const officialLinks = raw.officialLinks.slice(0, 12).map((link) => {
+  if (!steps.length) throw new Error("AI 任务方案至少需要一个执行步骤。");
+  // 私人事务常常没有官网，模型会用「班级群通知」这类来源占位并留空 url。
+  // 这类条目直接丢弃：界面永远不会展示它，其余内容照常可用。
+  const officialLinks = raw.officialLinks.slice(0, 12).flatMap((link) => {
     if (!link || typeof link !== "object" || Array.isArray(link)) throw new Error("AI 返回了无效的官方链接。");
-    return {
-      label: cleanText(link.label, 100, { required: true }),
-      url: normalizeHttpsUrl(link.url),
+    const url = safeHttpsUrl(link.url);
+    if (!url) return [];
+    return [{
+      label: cleanText(link.label, 100) || new URL(url).hostname,
+      url,
       purpose: cleanText(link.purpose, 300)
-    };
+    }];
   });
   return {
     todoId: normalizedTodoId,
@@ -418,6 +431,29 @@ async function requestOpenClawPlan(request, dependencies = {}) {
   } finally {
     clock.clearTimeout(timeout);
   }
+}
+
+// 拆解完成后推送到 QQ 的正文：标题、立即可做的下一步、带预估时长的步骤清单。
+// 摘要、待确认问题、注意事项留在应用里——手机上要的是能直接照着做的部分。
+function buildTaskPlanMessage(todo, plan, { maxLength = 4000 } = {}) {
+  const title = cleanText(todo?.title, 200) || "未命名待办";
+  const lines = [`时间大师 · AI 拆解：${title}`];
+  const nextAction = cleanText(plan?.nextAction, 300);
+  if (nextAction) lines.push(`下一步：${nextAction}`);
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  if (steps.length) {
+    lines.push("");
+    steps.forEach((step, index) => {
+      const stepTitle = cleanText(step?.title, 120);
+      if (!stepTitle) return;
+      const minutes = Math.max(1, Math.round(Number(step?.estimatedMinutes) || 0));
+      lines.push(`${index + 1}. ${stepTitle}（约 ${minutes} 分钟）`);
+    });
+  }
+  const total = Math.max(0, Math.round(Number(plan?.estimatedMinutes) || 0));
+  if (total > 0) lines.push(`\n合计预估 ${total} 分钟`);
+  const text = lines.join("\n");
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
 function scheduleSnapshot(todo) {
@@ -861,6 +897,7 @@ module.exports = {
   normalizeAiTaskCoachConfig,
   taskSourceHash,
   normalizeTaskPlan,
+  buildTaskPlanMessage,
   buildTaskPlanRequest,
   buildDayPlanRequest,
   extractFunctionCall,

@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url)
 const {
   GATEWAY_DIRECT_TIMEOUT_MS,
   normalizeGatewayWsUrl,
+  probeDirectGateway,
   buildDirectSendParams,
   classifyGatewayError,
   deliverDirectReminder
@@ -218,6 +219,35 @@ test('a connection lost after the send is uncertain rather than accepted or retr
   // 消息可能已经离开网关，重发会造成重复提醒，因此只能记为不确定。
   assert.equal(result.classification, 'uncertain')
   assert.equal(result.reason, 'connection_closed')
+})
+
+test('the connection check handshakes without sending anything', async () => {
+  const ok = withScript((socket) => {
+    socket.serverFrame(challenge)
+    queueMicrotask(() => socket.serverFrame(helloOk()))
+  })
+  const result = await probeDirectGateway({ endpoint: ENDPOINT, token: 'operator-token' }, { WebSocket: ok, clientVersion: '0.1.11' })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.scopes, ['operator.write'])
+  // 只发了握手帧，绝不能顺带发出一条消息。
+  assert.equal(FakeWebSocket.last.sent.length, 1)
+  assert.equal(FakeWebSocket.last.sent[0].method, 'connect')
+
+  // 凭据错误必须与「连不上」区分开：前者要提示换 Token，后者要提示启动 Gateway。
+  const denied = withScript((socket) => {
+    socket.serverFrame(challenge)
+    queueMicrotask(() => socket.serverFrame({ type: 'res', id: 'connect', ok: false, error: { code: 'UNAUTHORIZED' } }))
+  })
+  assert.equal((await probeDirectGateway({ endpoint: ENDPOINT, token: 'wrong' }, { WebSocket: denied })).reason, 'gateway_auth_failed')
+
+  const noSend = withScript((socket) => {
+    socket.serverFrame(challenge)
+    queueMicrotask(() => socket.serverFrame(helloOk(['agent'])))
+  })
+  assert.equal((await probeDirectGateway({ endpoint: ENDPOINT, token: 'operator-token' }, { WebSocket: noSend })).reason, 'send_unsupported')
+
+  assert.equal((await probeDirectGateway({ endpoint: 'http://example.com:1/x' })).reason, 'invalid_endpoint')
+  assert.equal((await probeDirectGateway({ endpoint: ENDPOINT, token: '' })).reason, 'missing_token')
 })
 
 test('a silent gateway aborts on the shared timeout and stays uncertain', async () => {

@@ -93,6 +93,65 @@ function buildDirectSendParams(request) {
   return params;
 }
 
+// 只做握手并确认 send 可用，不发送任何消息。连接检查必须走投递真正会用的
+// 那条路径：直投用的是 Gateway operator 凭据，拿它去敲 /hooks/agent 只会得到
+// 401，让填对了的用户以为自己填错。
+async function probeDirectGateway(request, dependencies = {}) {
+  const url = normalizeGatewayWsUrl(request?.endpoint);
+  const token = boundedText(request?.token, 4096);
+  if (!url) return { ok: false, reason: "invalid_endpoint" };
+  if (!token) return { ok: false, reason: "missing_token" };
+
+  const WebSocketImpl = dependencies.WebSocket || globalThis.WebSocket;
+  if (typeof WebSocketImpl !== "function") return { ok: false, reason: "websocket_unavailable" };
+  const clock = dependencies.clock || globalThis;
+  const clientVersion = boundedText(dependencies.clientVersion || "0.0.0", 32);
+
+  return new Promise((resolve) => {
+    let socket = null;
+    let settled = false;
+    let timer = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clock.clearTimeout(timer);
+      try {
+        socket?.close();
+      } catch {
+        // 结论已确定，关闭失败不影响。
+      }
+      resolve(result);
+    };
+    timer = clock.setTimeout(() => finish({ ok: false, reason: "timeout" }), GATEWAY_DIRECT_TIMEOUT_MS);
+
+    try {
+      socket = new WebSocketImpl(url);
+    } catch {
+      return finish({ ok: false, reason: "connection_unavailable" });
+    }
+    socket.addEventListener("error", () => finish({ ok: false, reason: "connection_unavailable" }));
+    socket.addEventListener("close", () => finish({ ok: false, reason: "connection_unavailable" }));
+    socket.addEventListener("message", (event) => {
+      let frame;
+      try {
+        frame = JSON.parse(typeof event?.data === "string" ? event.data : String(event?.data ?? ""));
+      } catch {
+        return;
+      }
+      if (frame?.type === "event" && frame.event === "connect.challenge") {
+        socket.send(JSON.stringify({ type: "req", id: "connect", method: "connect", params: buildConnectParams(token, clientVersion) }));
+        return;
+      }
+      if (frame?.type === "res" && frame.id === "connect") {
+        if (!frame.ok) return finish({ ok: false, reason: "gateway_auth_failed" });
+        const methods = frame.payload?.features?.methods;
+        if (Array.isArray(methods) && !methods.includes("send")) return finish({ ok: false, reason: "send_unsupported" });
+        return finish({ ok: true, scopes: frame.payload?.auth?.scopes || [] });
+      }
+    });
+  });
+}
+
 async function deliverDirectReminder(request, dependencies = {}) {
   const source = request && typeof request === "object" ? request : {};
   const url = normalizeGatewayWsUrl(source.endpoint);
@@ -217,5 +276,6 @@ module.exports = {
   buildConnectParams,
   buildDirectSendParams,
   classifyGatewayError,
+  probeDirectGateway,
   deliverDirectReminder
 };

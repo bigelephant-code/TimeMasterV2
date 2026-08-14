@@ -6,6 +6,7 @@ import { join } from 'node:path'
 const root = process.cwd()
 const main = readFileSync(join(root, 'src', 'main', 'index.js'), 'utf8')
 const preload = readFileSync(join(root, 'src', 'preload', 'index.js'), 'utf8')
+const coachModule = readFileSync(join(root, 'src', 'main', 'ai-task-coach.js'), 'utf8')
 const bundledRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'styles-4HYtOQXD.js'), 'utf8')
 const mainRenderer = readFileSync(join(root, 'src', 'renderer', 'assets', 'index-DQb7weSm.js'), 'utf8')
 const mainStyles = readFileSync(join(root, 'src', 'renderer', 'assets', 'styles-Bi0oHDKn.css'), 'utf8')
@@ -134,9 +135,10 @@ test('AI task coach keeps its operator credential and mutations behind trusted m
   assert.match(viteConfig, /'ai-task-coach': r\('src\/main\/ai-task-coach\.js'\)/)
   assert.match(verifyBuild, /out\/main\/ai-task-coach\.js/)
   assert.match(mainRenderer, /AI 安排今天/)
-  assert.match(mainRenderer, /保存后让 AI 拆解/)
+  assert.match(mainRenderer, /保存后自动生成 AI 拆解/)
   assert.match(mainRenderer, /AI 任务教练/)
-  assert.match(mainRenderer, /!v\.id && aiCoachEnabled\(\) && aiCoachConfig\(\)\.autoPlanNewTodos/)
+  // 自动拆解已由主进程在 todo:create 上决定，renderer 不再参与判断。
+  assert.match(main, /void autoPlanCreatedTodo\(r\)/)
   assert.match(mainRenderer, /class: "coach-source-host"[\s\S]*?linkHost\(link\.url\)/)
   assert.match(mainStyles, /\.coach-source-host/)
   assert.match(bundledRenderer, /const isMainRenderer = \/\(\?:\^\|\\\/\)index\\\.html\$\/i\.test\(window\.location\.pathname\)/)
@@ -244,6 +246,107 @@ test('the reminder settings expose the direct bridge and label its credential co
   // 两种模式需要的凭据不同，界面必须说清楚要填哪一个。
   assert.match(cardSource, /"Gateway operator Token" : "Hook Token"/)
   assert.match(cardSource, /operator Token；若此前保存的是 Hook Token/)
+})
+
+test('the reminder actions explain why they refuse instead of doing nothing', () => {
+  // 前置条件不满足时静默 return，按钮点了毫无反应，用户无从判断卡在哪一步。
+  const source = mainRenderer.slice(mainRenderer.indexOf('const runSavedAction'), mainRenderer.indexOf('const savedActionsReady'))
+  assert.doesNotMatch(source, /if \(busy\.value \|\| loading\.value \|\| dirty\.value \|\| !tokenConfigured\.value\) return/)
+  assert.match(source, /配置有未保存的改动，请先点「保存配置」。/)
+  assert.match(source, /DEFAULT_GATEWAY_TOKEN/, '直投模式要直接写出正确凭据的取值位置')
+  // 只有真正无法响应时才禁用按钮，否则用户看不到上面那些提示。
+  assert.match(mainRenderer, /const savedActionsReady = \(\) => !loading\.value && !busy\.value;/)
+})
+
+test('nodes with dynamic text always declare the TEXT patch flag', () => {
+  // block 更新只遍历 dynamicChildren，节点的 patchFlag 决定哪些部分会被 patch。
+  // 动态文本却漏掉 TEXT(1) 时，文字冻在首次渲染的值：QQ 卡片的徽章永远显示
+  // 「读取中」，而它的状态提示行冻在空串上——保存成功、保存失败、检查结果，
+  // 这张卡说过的每句话都没显示出来，用户只能看到「点了没反应」。
+  for (const [name, source] of [['index', mainRenderer], ['widget', widgetRenderer], ['styles', bundledRenderer]]) {
+    source.split('\n').forEach((line, index) => {
+      const trimmed = line.trim()
+      // 只看字符串子节点：数组子节点由内层 createTextVNode 自行声明。
+      // 两种写法都要覆盖：闭合在自己一行的，和整个节点写在一行的。
+      const match = trimmed.match(/^\}, ([^[].*?), (\d+)(?:, \[[^\]]*\])?\)[,)]?$/)
+        || trimmed.match(/^createBaseVNode\(".+?", \{.*\} ?, ([^[].*?), (\d+)(?:, \[[^\]]*\])?\)[,)]?$/)
+      if (!match) return
+      const [, child, flag] = match
+      if (Number(flag) & 1) return
+      const isDynamic = /\?|\.value|\(\)|\$\{|\+/.test(child)
+      assert.ok(!isDynamic, `${name}:${index + 1} 的动态文本缺少 TEXT patchFlag（当前 ${flag}）：${trimmed.slice(0, 90)}`)
+    })
+  }
+})
+
+test('every toggle knob declares the CLASS patch flag so it can actually move', () => {
+  // block 更新只遍历 dynamicChildren：patchFlag 为 0 的节点会被整个跳过，class
+  // 停在首次渲染的值。编辑器里那个「保存后让 AI 拆解」开关就这样冻住过——点击
+  // 确实翻转了状态，但滑块不动，用户以为没开，再点一次反而真的关掉了。
+  // 该开关已随自动拆解下沉主进程而移除，但这条扫描要留住，防止别处再写漏。
+  for (const [name, source] of [['index', mainRenderer], ['widget', widgetRenderer], ['styles', bundledRenderer]]) {
+    const lines = source.split('\n')
+    lines.forEach((line, index) => {
+      const trimmed = line.trim()
+      if (!/^createBaseVNode\("span", \{ class: normalizeClass\(\["toggle"/.test(trimmed)) return
+      assert.match(trimmed, /\}, null, 2\)$/, `${name}:${index + 1} 的开关缺少 CLASS patchFlag：${trimmed.slice(0, 80)}`)
+    })
+  }
+})
+
+test('auto-planning a new todo is decided in the main process, not per renderer path', () => {
+  // 判断曾经放在 renderer，四条创建路径各写一遍，接连出过两个 bug：小组件是
+  // 独立 bundle 压根没接上，编辑器的开关又因缺 patchFlag 而冻死。现在整个下沉
+  // 到 todo:create 这一条 IPC 上，创建来自哪个窗口都一样。
+  assert.match(main, /function autoPlanNewTodoEnabled\(\)/)
+  assert.match(main, /config\.enabled === true && config\.autoPlanNewTodos === true && !isSmokeTest/)
+  const createHandler = main.slice(main.indexOf('handleTrusted("todo:create"'), main.indexOf('handleTrusted("todo:update"'))
+  assert.match(createHandler, /void autoPlanCreatedTodo\(r\)/)
+
+  // 子待办与冒烟测试数据走 repo.createTodo，不经过这条 IPC，因此不会触发拆解。
+  assert.doesNotMatch(main, /autoPlanCreatedTodo\(todo\)[\s\S]{0,40}createStepTodos/)
+
+  // renderer 不再有任何自动拆解判断，也不再有跨窗口唤起管道。
+  for (const source of [mainRenderer, widgetRenderer]) {
+    assert.doesNotMatch(source, /aiAutoPlanNewTodos/)
+    assert.doesNotMatch(source, /autoPlanNewTodo\(/)
+    assert.doesNotMatch(source, /aiCoachTodoId/)
+    assert.doesNotMatch(source, /coachAfterSave/)
+  }
+  assert.doesNotMatch(widgetRenderer, /aiCoach\./)
+})
+
+test('pushing a plan to QQ is opt-in and only covers auto-generated plans', () => {
+  // 这是一次外发，必须由用户显式开启，且不能被别的开关顺带打开。
+  assert.match(coachModule, /sendPlanToQq: input\.sendPlanToQq === true/)
+  assert.match(mainRenderer, /switchRow\("把拆解推送到 QQ"/)
+
+  const autoPlanSource = main.slice(main.indexOf('async function autoPlanCreatedTodo'), main.indexOf('function todosForAiDay'))
+  // 只有自动拆解这条路径会推送；手动拆解与重新生成不会。
+  assert.match(autoPlanSource, /sendPlanToQq !== true\) return/)
+  // QQ 未配置或 token 读不出来时安静跳过，绝不因此让拆解失败。
+  assert.match(autoPlanSource, /const qq = planQqTargetConfig\(\);\s*if \(!qq\) return/)
+  assert.match(main, /config\.enabled && config\.token && config\.target \? config : null/)
+  // 拆解本身失败不能把异常带回渲染进程：待办已经创建成功了。
+  assert.match(autoPlanSource, /console\.warn\("\[ai-auto-plan\]/)
+  assert.doesNotMatch(autoPlanSource, /throw /)
+})
+
+test('settings payloads crossing IPC carry only primitives', () => {
+  // draft 是 Vue ref，任何嵌套对象都会变成 reactive Proxy，而 Proxy 无法结构化
+  // 克隆。此前 AI 设置回传了嵌套的 workday/lunch，导致 load 之后每次保存都以
+  // 「An object could not be cloned」失败，只有首次保存（draft 仍是扁平默认值）能成功。
+  const coachConfigSource = main.slice(main.indexOf('function publicAiTaskCoachConfig'), main.indexOf('function saveAiTaskCoachConfig'))
+  assert.doesNotMatch(coachConfigSource, /\n\s+workday: normalized\.workday/)
+  assert.doesNotMatch(coachConfigSource, /\n\s+lunch: normalized\.lunch/)
+  for (const key of ['workdayStart', 'workdayEnd', 'lunchStart', 'lunchEnd', 'bufferMinutes']) {
+    assert.match(coachConfigSource, new RegExp(`${key}: normalized\\.`), key)
+  }
+
+  // 两个设置卡片都必须逐字段构造 payload，不能直接展开 draft。
+  const coachSave = mainRenderer.slice(mainRenderer.indexOf('async function save()', mainRenderer.indexOf('__name: "AICoachSettings"')))
+  assert.doesNotMatch(coachSave.slice(0, 1400), /const payload = \{ \.\.\.draft\.value \}/)
+  assert.match(coachSave.slice(0, 1400), /workdayStart: String\(draft\.value\.workdayStart/)
 })
 
 test('promoting AI steps into sub-todos previews first and never writes without confirmation', () => {
