@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { normalizeStepBatches } = require("./ai-step-todos.js");
 
 const DEFAULT_AI_TASK_COACH_ENDPOINT = "http://127.0.0.1:18789/v1/responses";
 const DEFAULT_AI_TASK_COACH_AGENT_ID = "timemaster-coach";
@@ -844,7 +845,8 @@ function normalizeAiTaskCoachState(raw, { now = Date.now() } = {}) {
   return {
     version: AI_TASK_COACH_STATE_VERSION,
     taskPlans,
-    dayPlans
+    dayPlans,
+    stepBatches: normalizeStepBatches(raw?.stepBatches)
   };
 }
 

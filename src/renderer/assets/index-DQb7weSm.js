@@ -3168,7 +3168,83 @@ const AICoachDrawer = {
         return "链接不可用";
       }
     };
+    // 步骤行本身已经是「勾选完成」的按钮，不能再往里塞第二个可交互元素。
+    // 改用选择模式：进入后同一个按钮改为选中/取消选中，退出后恢复原行为。
+    const picking = ref(false);
+    const pickedStepIds = ref([]);
+    const stepDrafts = ref(null);
+    const stepBatchesFor = (todoId) => coachArray(state.aiTaskCoach?.stepBatches)
+      .filter((batch) => batch?.parentTodoId === todoId && batch.status === "applied");
+    const promotedFor = (plan) => new Set(coachArray(plan?.promotedStepIds).map(String));
+    const resetPicking = () => {
+      picking.value = false;
+      pickedStepIds.value = [];
+      stepDrafts.value = null;
+    };
+    const startPicking = () => {
+      if (aiCoachUi.value.busy) return;
+      picking.value = true;
+      pickedStepIds.value = [];
+      stepDrafts.value = null;
+      aiCoachUi.value.error = "";
+      aiCoachUi.value.notice = "";
+    };
+    const togglePick = (step) => {
+      const id = String(step?.id || "");
+      if (!id) return;
+      stepDrafts.value = null;
+      pickedStepIds.value = pickedStepIds.value.includes(id)
+        ? pickedStepIds.value.filter((row) => row !== id)
+        : [...pickedStepIds.value, id];
+    };
+    async function previewStepTodos() {
+      const plan = taskPlan.value;
+      if (!plan?.todoId || !pickedStepIds.value.length || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = "step-preview";
+      aiCoachUi.value.error = "";
+      try {
+        const result = await actions.previewAIStepTodos(plan.todoId, [...pickedStepIds.value]);
+        if (!result?.ok) throw new Error(result?.message || "无法预览子待办");
+        stepDrafts.value = coachArray(result.drafts);
+      } catch (error) {
+        stepDrafts.value = null;
+        aiCoachUi.value.error = coachErrorMessage(error, "预览失败，没有创建任何待办。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    async function confirmStepTodos() {
+      const plan = taskPlan.value;
+      if (!plan?.todoId || !stepDrafts.value?.length || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = "step-create";
+      aiCoachUi.value.error = "";
+      try {
+        const result = await actions.createAIStepTodos(plan.todoId, [...pickedStepIds.value]);
+        if (!result?.ok) throw new Error(result?.message || "子待办未创建");
+        aiCoachUi.value.notice = result.message || "已创建独立待办，可撤销本次创建。";
+        resetPicking();
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "子待办没有创建，待办列表未改变。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
+    async function undoStepBatch(batch) {
+      if (!batch?.id || aiCoachUi.value.busy) return;
+      aiCoachUi.value.busy = `step-undo:${batch.id}`;
+      aiCoachUi.value.error = "";
+      try {
+        const result = await actions.undoAIStepBatch(batch.id);
+        if (!result?.ok) throw new Error(result?.message || "未撤销任何待办");
+        aiCoachUi.value.notice = result.message || "已撤销本次创建。";
+      } catch (error) {
+        aiCoachUi.value.error = coachErrorMessage(error, "没有删除任何待办。");
+      } finally {
+        aiCoachUi.value.busy = "";
+      }
+    }
     async function toggleStep(step) {
+      if (picking.value) return togglePick(step);
       const plan = taskPlan.value;
       if (!plan?.todoId || !step?.id || aiCoachUi.value.busy) return;
       aiCoachUi.value.busy = `step:${step.id}`;
@@ -3257,22 +3333,73 @@ const AICoachDrawer = {
         stringSection("准备材料", plan.prerequisites || plan.materials),
         steps.length ? createBaseVNode("section", { class: "coach-section" }, [
           createBaseVNode("div", { class: "coach-section-heading" }, [
-            createBaseVNode("h4", { class: "coach-section-title" }, "行动步骤"),
-            plan.estimatedMinutes ? createBaseVNode("span", { class: "coach-duration" }, `共约 ${minutesText(plan.estimatedMinutes)}`) : null
+            createBaseVNode("h4", { class: "coach-section-title" }, picking.value ? "选择要创建为独立待办的步骤" : "行动步骤", 1),
+            plan.estimatedMinutes && !picking.value ? createBaseVNode("span", { class: "coach-duration" }, `共约 ${minutesText(plan.estimatedMinutes)}`) : null,
+            createBaseVNode("button", {
+              type: "button",
+              class: "ghost coach-step-btn",
+              disabled: Boolean(aiCoachUi.value.busy) || Boolean(plan.stale),
+              onClick: () => picking.value ? resetPicking() : startPicking()
+            }, picking.value ? "退出选择" : "创建为独立待办", 9, ["disabled"])
           ]),
-          createBaseVNode("div", { class: "coach-step-list" }, steps.map((step, index) => createBaseVNode("button", {
-            type: "button",
-            class: normalizeClass(["coach-step", { done: step.done, busy: aiCoachUi.value.busy === `step:${step.id}` }]),
-            disabled: Boolean(aiCoachUi.value.busy),
-            onClick: () => toggleStep(step)
-          }, [
-            createBaseVNode("span", { class: "coach-step-index" }, step.done ? "✓" : String(index + 1).padStart(2, "0")),
-            createBaseVNode("span", { class: "coach-step-copy" }, [
-              createBaseVNode("strong", null, String(step.title || `步骤 ${index + 1}`)),
-              step.detail ? createBaseVNode("small", null, String(step.detail)) : null
-            ]),
-            minutesText(step.minutes ?? step.estimatedMinutes) ? createBaseVNode("span", { class: "coach-duration" }, minutesText(step.minutes ?? step.estimatedMinutes)) : null
-          ], 10, ["disabled"])))
+          picking.value ? createBaseVNode("p", { class: "coach-step-hint" }, "点击步骤进行选择；确认前不会创建任何待办。") : null,
+          createBaseVNode("div", { class: "coach-step-list" }, steps.map((step, index) => {
+            const stepId = String(step.id || "");
+            const promoted = promotedFor(plan).has(stepId);
+            const picked = picking.value && pickedStepIds.value.includes(stepId);
+            return createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass(["coach-step", {
+                done: !picking.value && step.done,
+                picked,
+                promoted: picking.value && promoted,
+                busy: aiCoachUi.value.busy === `step:${step.id}`
+              }]),
+              disabled: Boolean(aiCoachUi.value.busy) || picking.value && promoted,
+              title: picking.value && promoted ? "这个步骤已经创建过独立待办" : "",
+              onClick: () => toggleStep(step)
+            }, [
+              createBaseVNode("span", { class: "coach-step-index" }, picking.value ? picked ? "✓" : promoted ? "已建" : String(index + 1).padStart(2, "0") : step.done ? "✓" : String(index + 1).padStart(2, "0"), 1),
+              createBaseVNode("span", { class: "coach-step-copy" }, [
+                createBaseVNode("strong", null, String(step.title || `步骤 ${index + 1}`)),
+                step.detail ? createBaseVNode("small", null, String(step.detail)) : null
+              ]),
+              minutesText(step.minutes ?? step.estimatedMinutes) ? createBaseVNode("span", { class: "coach-duration" }, minutesText(step.minutes ?? step.estimatedMinutes)) : null
+            ], 10, ["disabled", "title"])
+          })),
+          picking.value ? createBaseVNode("div", { class: "coach-step-actions" }, [
+            createBaseVNode("span", { class: "coach-step-count" }, `已选 ${pickedStepIds.value.length} 项`, 1),
+            createBaseVNode("button", {
+              type: "button",
+              class: "ghost coach-step-btn",
+              disabled: Boolean(aiCoachUi.value.busy) || !pickedStepIds.value.length,
+              onClick: previewStepTodos
+            }, aiCoachUi.value.busy === "step-preview" ? "预览中…" : "预览", 9, ["disabled"])
+          ]) : null,
+          picking.value && stepDrafts.value?.length ? createBaseVNode("div", { class: "coach-step-preview" }, [
+            createBaseVNode("div", { class: "coach-step-preview-title" }, `将创建 ${stepDrafts.value.length} 条独立待办`, 1),
+            createBaseVNode("ul", { class: "coach-checklist" }, stepDrafts.value.map((draft) => createBaseVNode("li", null, [
+              createBaseVNode("i", { "aria-hidden": "true" }),
+              createBaseVNode("span", null, `${String(draft.title)}（预计 ${draft.estimatedMinutes} 分钟）`)
+            ]))),
+            createBaseVNode("p", { class: "coach-step-hint" }, "子待办不带日期与时间，可随后用「AI 安排今天」统一排程。"),
+            createBaseVNode("button", {
+              type: "button",
+              class: "primary coach-step-btn",
+              disabled: Boolean(aiCoachUi.value.busy),
+              onClick: confirmStepTodos
+            }, aiCoachUi.value.busy === "step-create" ? "创建中…" : "确认创建", 9, ["disabled"])
+          ]) : null,
+          stepBatchesFor(plan.todoId).map((batch) => createBaseVNode("div", { class: "coach-step-batch" }, [
+            createBaseVNode("span", null, `已创建 ${batch.items.length} 条独立待办`),
+            batch.undoable ? createBaseVNode("button", {
+              type: "button",
+              class: "ghost coach-step-btn",
+              disabled: Boolean(aiCoachUi.value.busy),
+              onClick: () => undoStepBatch(batch)
+            }, aiCoachUi.value.busy === `step-undo:${batch.id}` ? "撤销中…" : "撤销本次创建", 9, ["disabled"])
+              : createBaseVNode("small", null, "其中有待办已被修改或完成，为避免删除你的内容不再提供撤销")
+          ]))
         ]) : null,
         links.length ? createBaseVNode("section", { class: "coach-section" }, [
           createBaseVNode("h4", { class: "coach-section-title" }, "建议入口（请核对官网）"),
@@ -3367,7 +3494,7 @@ const AICoachDrawer = {
           ]),
           aiCoachUi.value.busy ? createBaseVNode("div", { class: "coach-status is-busy", role: "status" }, [
             createBaseVNode("i", { "aria-hidden": "true" }),
-            createBaseVNode("span", null, aiCoachUi.value.busy.startsWith("step:") ? "正在更新步骤…" : aiCoachUi.value.busy.startsWith("link:") ? "正在安全打开链接…" : aiCoachUi.value.busy === "apply" ? "正在应用今日安排…" : aiCoachUi.value.busy === "undo" ? "正在撤销本次安排…" : "正在核对任务、资料和今天的空档…")
+            createBaseVNode("span", null, aiCoachUi.value.busy.startsWith("step:") ? "正在更新步骤…" : aiCoachUi.value.busy.startsWith("link:") ? "正在安全打开链接…" : aiCoachUi.value.busy.startsWith("step-undo:") ? "正在撤销本次创建…" : aiCoachUi.value.busy === "step-preview" ? "正在生成子待办预览…" : aiCoachUi.value.busy === "step-create" ? "正在创建独立待办…" : aiCoachUi.value.busy === "apply" ? "正在应用今日安排…" : aiCoachUi.value.busy === "undo" ? "正在撤销本次安排…" : "正在核对任务、资料和今天的空档…")
           ]) : null,
           aiCoachUi.value.error ? createBaseVNode("div", { class: "coach-status is-error", role: "alert" }, aiCoachUi.value.error) : null,
           aiCoachUi.value.notice ? createBaseVNode("div", { class: "coach-status is-notice", role: "status" }, aiCoachUi.value.notice) : null,

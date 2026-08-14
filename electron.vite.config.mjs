@@ -16,6 +16,7 @@ export default defineConfig({
           'expense-categories': r('src/main/expense-categories.js'),
           'remote-reminders': r('src/main/remote-reminders.js'),
           'gateway-direct-send': r('src/main/gateway-direct-send.js'),
+          'ai-step-todos': r('src/main/ai-step-todos.js'),
           'ai-task-coach': r('src/main/ai-task-coach.js')
         }
       }

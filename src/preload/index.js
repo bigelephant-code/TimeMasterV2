@@ -73,6 +73,9 @@ const api = {
     planDay: (date) => electron.ipcRenderer.invoke("aiCoach:planDay", date),
     applyDayPlan: (planId) => electron.ipcRenderer.invoke("aiCoach:applyDayPlan", planId),
     undoDayPlan: (planId) => electron.ipcRenderer.invoke("aiCoach:undoDayPlan", planId),
+    previewStepTodos: (todoId, stepIds) => electron.ipcRenderer.invoke("aiCoach:previewStepTodos", todoId, stepIds),
+    createStepTodos: (todoId, stepIds) => electron.ipcRenderer.invoke("aiCoach:createStepTodos", todoId, stepIds),
+    undoStepBatch: (batchId) => electron.ipcRenderer.invoke("aiCoach:undoStepBatch", batchId),
     toggleStep: (todoId, stepId) => electron.ipcRenderer.invoke("aiCoach:toggleStep", todoId, stepId),
     openLink: (url) => electron.ipcRenderer.invoke("aiCoach:openLink", url)
   },

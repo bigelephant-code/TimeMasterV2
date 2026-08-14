@@ -27,6 +27,13 @@ const {
 } = require("./remote-reminders.js");
 const { deliverDirectReminder } = require("./gateway-direct-send.js");
 const {
+  MAX_STEPS_PER_BATCH,
+  promotedStepIds,
+  buildStepTodoDrafts,
+  createStepTodos,
+  undoStepBatch
+} = require("./ai-step-todos.js");
+const {
   DEFAULT_AI_TASK_COACH_ENDPOINT,
   TASK_PLAN_TOOL_NAME,
   DAY_PLAN_TOOL_NAME,
@@ -912,11 +919,14 @@ function rendererAiTaskCoachState() {
   const normalized = normalizeAiTaskCoachState(data.aiTaskCoach);
   const todosById = new Map(data.todos.map((todo) => [todo.id, todo]));
   const taskPlans = /* @__PURE__ */ Object.create(null);
+  const stepBatches = normalized.stepBatches || [];
   for (const [todoId, plan] of Object.entries(normalized.taskPlans)) {
     const todo = todosById.get(todoId);
     taskPlans[todoId] = {
       ...plan,
-      stale: !todo || plan.sourceHash !== taskSourceHash(todo, { includeNote: settings.aiTaskCoach.includeNote })
+      stale: !todo || plan.sourceHash !== taskSourceHash(todo, { includeNote: settings.aiTaskCoach.includeNote }),
+      // 已经提升为独立待办的步骤，界面据此禁用重复勾选。
+      promotedStepIds: [...promotedStepIds(stepBatches, todoId, plan.sourceHash)]
     };
   }
   const dayPlans = normalized.dayPlans.map((plan) => {
@@ -931,7 +941,17 @@ function rendererAiTaskCoachState() {
     });
     return stale ? { ...plan, status: "stale" } : plan;
   });
-  return { version: 1, taskPlans, dayPlans };
+  // 撤销可行性在主进程判定：界面只有在真的能安全删除时才提供撤销入口。
+  const batches = stepBatches.map((batch) => {
+    const probe = undoStepBatch({ todos: data.todos, batch });
+    return {
+      ...batch,
+      items: batch.items.map((item) => ({ ...item, missing: !todosById.has(item.todoId) })),
+      undoable: probe.ok === true,
+      conflictTodoIds: probe.ok ? [] : probe.conflictTodoIds || []
+    };
+  });
+  return { version: 1, taskPlans, dayPlans, stepBatches: batches };
 }
 function occupiedScheduleFor(todo) {
   return {
@@ -1054,6 +1074,90 @@ function undoAiDayPlan(planId) {
   flushNow();
   return { ok: true, plan, changedTodoIds: result.changedTodoIds, message: `已撤销 ${result.changedTodoIds.length} 项安排。` };
 }
+function aiStepContext(todoId) {
+  const id = String(todoId || "");
+  const plan = data.aiTaskCoach.taskPlans?.[id];
+  if (!plan) throw new Error("这条待办还没有 AI 拆解。");
+  const parentTodo = data.todos.find((row) => row.id === id);
+  if (!parentTodo) throw new Error("这条待办已不存在。");
+  // 拆解生成后待办被改过，步骤描述可能已经对不上当前任务，不允许据此创建子待办。
+  if (plan.sourceHash !== taskSourceHash(parentTodo, { includeNote: settings.aiTaskCoach.includeNote })) {
+    throw new Error("待办内容在生成拆解后已经变化，请重新生成拆解再创建子待办。");
+  }
+  return { plan, parentTodo, batches: data.aiTaskCoach.stepBatches || [] };
+}
+const AI_STEP_TODO_REASONS = {
+  no_steps_selected: "请先选择要创建为独立待办的行动步骤。",
+  duplicate_steps: "选择的步骤有重复。",
+  too_many_steps: `一次最多创建 ${MAX_STEPS_PER_BATCH} 条子待办。`,
+  unknown_step: "选择的步骤已不在当前拆解中，请重新生成拆解。",
+  already_promoted: "选择的步骤已经创建过独立待办，未重复创建。",
+  empty_step_title: "步骤标题为空，无法创建待办。",
+  parent_done: "这条待办已完成，不再创建子待办。",
+  parent_missing: "这条待办已不存在。",
+  plan_missing: "找不到可用的 AI 拆解。",
+  create_unavailable: "当前无法创建待办。"
+};
+function previewAiStepTodos(todoId, stepIds) {
+  const { plan, parentTodo, batches } = aiStepContext(todoId);
+  const result = buildStepTodoDrafts({ plan, parentTodo, stepIds, batches });
+  if (!result.ok) {
+    return { ...result, message: AI_STEP_TODO_REASONS[result.reason] || "无法预览子待办。" };
+  }
+  return { ok: true, drafts: result.drafts, message: `将创建 ${result.drafts.length} 条独立待办，确认后才写入。` };
+}
+function createAiStepTodos(todoId, stepIds) {
+  const { plan, parentTodo, batches } = aiStepContext(todoId);
+  const result = createStepTodos({
+    plan,
+    parentTodo,
+    stepIds,
+    batches,
+    createTodo: (draft) => repo.createTodo(draft),
+    now: Date.now()
+  });
+  if (!result.ok) {
+    return { ...result, message: AI_STEP_TODO_REASONS[result.reason] || "创建子待办失败，未写入任何内容。" };
+  }
+  data.aiTaskCoach = normalizeAiTaskCoachState({
+    ...data.aiTaskCoach,
+    stepBatches: [...batches, result.batch]
+  });
+  flushNow();
+  return {
+    ok: true,
+    batch: result.batch,
+    createdTodoIds: result.createdTodoIds,
+    message: `已创建 ${result.createdTodoIds.length} 条独立待办，可随时撤销本次创建。`
+  };
+}
+function undoAiStepBatch(batchId) {
+  const batches = data.aiTaskCoach.stepBatches || [];
+  const batch = batches.find((row) => row.id === String(batchId || ""));
+  if (!batch) return { ok: false, reason: "not_found", message: "找不到这次创建记录。" };
+  const result = undoStepBatch({ todos: data.todos, batch });
+  if (!result.ok) {
+    return {
+      ...result,
+      message: result.reason === "undo_conflict"
+        ? "这些子待办在创建后已被修改或完成，为避免删除你的内容，本次没有删除任何待办。"
+        : "这次创建没有可撤销的内容。"
+    };
+  }
+  for (const todoId of result.removeTodoIds) repo.removeTodo(todoId);
+  const undone = { ...batch, status: "undone", undoneAt: Date.now() };
+  data.aiTaskCoach = normalizeAiTaskCoachState({
+    ...data.aiTaskCoach,
+    stepBatches: [...batches.filter((row) => row.id !== batch.id), undone]
+  });
+  flushNow();
+  return {
+    ok: true,
+    batch: undone,
+    removedTodoIds: result.removeTodoIds,
+    message: `已删除 ${result.removeTodoIds.length} 条本次创建的子待办。`
+  };
+}
 function toggleAiTaskStep(todoId, stepId) {
   const plan = data.aiTaskCoach.taskPlans?.[String(todoId || "")];
   if (!plan) return { ok: false, message: "这条待办还没有 AI 拆解。" };
@@ -1090,7 +1194,10 @@ function removeTodoFromAiTaskCoach(todoId) {
   data.aiTaskCoach = normalizeAiTaskCoachState({
     ...state2,
     taskPlans,
-    dayPlans: state2.dayPlans.filter((plan) => !referencesTodo(plan))
+    dayPlans: state2.dayPlans.filter((plan) => !referencesTodo(plan)),
+    // 父待办被删除后批次已无归属，直接丢弃；子待办被单独删除则保留批次，
+    // 撤销时会把缺失的条目当作早已撤销跳过。
+    stepBatches: (state2.stepBatches || []).filter((batch) => batch.parentTodoId !== todoId)
   });
 }
 const nextOrder = (rows) => rows.length ? Math.max(...rows.map((r) => r.order ?? 0)) + 1 : 0;
@@ -3349,6 +3456,22 @@ function registerIpc() {
   handleTrusted("aiCoach:undoDayPlan", (event, planId) => {
     ensureMainWindowSender(event);
     const result = undoAiDayPlan(planId);
+    if (result.ok) pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:previewStepTodos", (event, todoId, stepIds) => {
+    ensureMainWindowSender(event);
+    return previewAiStepTodos(String(todoId || ""), stepIds);
+  });
+  handleTrusted("aiCoach:createStepTodos", (event, todoId, stepIds) => {
+    ensureMainWindowSender(event);
+    const result = createAiStepTodos(String(todoId || ""), stepIds);
+    if (result.ok) pushSnapshot();
+    return result;
+  });
+  handleTrusted("aiCoach:undoStepBatch", (event, batchId) => {
+    ensureMainWindowSender(event);
+    const result = undoAiStepBatch(String(batchId || ""));
     if (result.ok) pushSnapshot();
     return result;
   });

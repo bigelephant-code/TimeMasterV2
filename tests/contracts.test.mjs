@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import { join } from 'node:path'
 
@@ -21,8 +21,25 @@ const matches = (text, pattern) => [...text.matchAll(pattern)].map((match) => ma
 test('every preload request channel has a trusted main-process handler', () => {
   const requested = [...new Set(matches(preload, /ipcRenderer\.invoke\("([^"]+)"/g))].sort()
   const handled = [...new Set(matches(main, /handleTrusted\("([^"]+)"/g))].sort()
-  assert.equal(requested.length, 54)
+  assert.equal(requested.length, 57)
   assert.deepEqual(handled, requested)
+})
+
+test('every main-process module a sibling requires is an emitted build entry', () => {
+  // 主进程模块之间的相对 require 在产物里原样保留，因此每个被 require 的模块
+  // 都必须是独立的 rollup input，否则打包后的应用启动即崩。此前
+  // gateway-direct-send.js 正是漏登记后才在构建阶段暴露出来的。
+  const required = new Set()
+  for (const file of readdirSync(join(root, 'src', 'main')).filter((name) => name.endsWith('.js'))) {
+    const source = readFileSync(join(root, 'src', 'main', file), 'utf8')
+    for (const target of matches(source, /require\("\.\/([^"]+)\.js"\)/g)) required.add(target)
+  }
+  assert.ok(required.size >= 8, '主进程模块数量异常，检查这条断言是否已经失效')
+
+  for (const name of [...required].sort()) {
+    assert.match(viteConfig, new RegExp(`'${name}': r\\('src/main/${name}\\.js'\\)`), `${name} 未登记进 electron.vite.config`)
+    assert.ok(verifyBuild.includes(`out/main/${name}.js`), `${name} 未列入 verify-build 的必需产物`)
+  }
 })
 
 test('renderer event subscriptions are emitted by the main process', () => {
@@ -227,6 +244,38 @@ test('the reminder settings expose the direct bridge and label its credential co
   // 两种模式需要的凭据不同，界面必须说清楚要填哪一个。
   assert.match(cardSource, /"Gateway operator Token" : "Hook Token"/)
   assert.match(cardSource, /operator Token；若此前保存的是 Hook Token/)
+})
+
+test('promoting AI steps into sub-todos previews first and never writes without confirmation', () => {
+  assert.match(viteConfig, /'ai-step-todos': r\('src\/main\/ai-step-todos\.js'\)/)
+  assert.match(verifyBuild, /out\/main\/ai-step-todos\.js/)
+
+  // 三个通道都必须是主窗口专用的 trusted IPC，renderer 不能自己创建待办。
+  for (const channel of ['aiCoach:previewStepTodos', 'aiCoach:createStepTodos', 'aiCoach:undoStepBatch']) {
+    assert.match(preload, new RegExp(`invoke\\("${channel}"`))
+    assert.match(main, new RegExp(`handleTrusted\\("${channel}"`))
+  }
+  const handlerSource = main.slice(main.indexOf('handleTrusted("aiCoach:previewStepTodos"'), main.indexOf('handleTrusted("aiCoach:toggleStep"'))
+  assert.equal((handlerSource.match(/ensureMainWindowSender\(event\)/g) || []).length, 3)
+  // 预览不得推送快照：它必须是纯读取，不产生任何数据变更。
+  const previewSource = handlerSource.slice(0, handlerSource.indexOf('handleTrusted("aiCoach:createStepTodos"'))
+  assert.doesNotMatch(previewSource, /pushSnapshot/)
+
+  // 拆解过期时禁止据此创建子待办。
+  assert.match(main, /待办内容在生成拆解后已经变化，请重新生成拆解再创建子待办。/)
+  // 撤销冲突必须明说没有删除任何东西。
+  assert.match(main, /为避免删除你的内容，本次没有删除任何待办。/)
+
+  // 界面：选择 → 预览 → 确认，三步不可省略。
+  assert.match(mainRenderer, /"创建为独立待办"/)
+  assert.match(mainRenderer, /点击步骤进行选择；确认前不会创建任何待办。/)
+  assert.match(mainRenderer, /"确认创建"/)
+  assert.match(mainRenderer, /onClick: previewStepTodos/)
+  assert.match(mainRenderer, /onClick: confirmStepTodos/)
+  // 只有主进程判定可安全撤销时才给出撤销入口。
+  assert.match(mainRenderer, /batch\.undoable \?/)
+  // 已提升过的步骤不能重复勾选。
+  assert.match(mainRenderer, /picking\.value && promoted/)
 })
 
 test('widget expense quick entry can be cancelled without writing a record', () => {

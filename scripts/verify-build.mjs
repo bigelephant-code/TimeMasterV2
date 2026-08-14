@@ -11,6 +11,7 @@ const required = [
   'out/main/expense-categories.js',
   'out/main/remote-reminders.js',
   'out/main/gateway-direct-send.js',
+  'out/main/ai-step-todos.js',
   'out/main/ai-task-coach.js',
   'out/preload/index.js',
   'out/renderer/index.html',

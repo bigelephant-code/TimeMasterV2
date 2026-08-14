@@ -7237,6 +7237,9 @@ const actions = {
   applyAIDayPlan: (planId) => api.aiCoach.applyDayPlan(planId),
   undoAIDayPlan: (planId) => api.aiCoach.undoDayPlan(planId),
   toggleAIPlanStep: (todoId, stepId) => api.aiCoach.toggleStep(todoId, stepId),
+  previewAIStepTodos: (todoId, stepIds) => api.aiCoach.previewStepTodos(todoId, stepIds),
+  createAIStepTodos: (todoId, stepIds) => api.aiCoach.createStepTodos(todoId, stepIds),
+  undoAIStepBatch: (batchId) => api.aiCoach.undoStepBatch(batchId),
   openAICoachLink: (url) => api.aiCoach.openLink(url),
   /** 快速新增：只给标题和日期，其余走默认 */
   quickAdd(title, dateStr) {
