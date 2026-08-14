@@ -22,7 +22,7 @@ const matches = (text, pattern) => [...text.matchAll(pattern)].map((match) => ma
 test('every preload request channel has a trusted main-process handler', () => {
   const requested = [...new Set(matches(preload, /ipcRenderer\.invoke\("([^"]+)"/g))].sort()
   const handled = [...new Set(matches(main, /handleTrusted\("([^"]+)"/g))].sort()
-  assert.equal(requested.length, 57)
+  assert.equal(requested.length, 61)
   assert.deepEqual(handled, requested)
 })
 
@@ -314,6 +314,37 @@ test('auto-planning a new todo is decided in the main process, not per renderer 
     assert.doesNotMatch(source, /coachAfterSave/)
   }
   assert.doesNotMatch(widgetRenderer, /aiCoach\./)
+})
+
+test('the local task API stays read-only, loopback-bound and opt-in', () => {
+  assert.match(viteConfig, /'local-task-api': r\('src\/main\/local-task-api\.js'\)/)
+  assert.ok(verifyBuild.includes('out/main/local-task-api.js'))
+
+  // 默认关闭：开一个本机监听端口必须由用户显式同意。
+  assert.match(main, /localTaskApi: \{ enabled: false, port: DEFAULT_LOCAL_TASK_API_PORT \}/)
+  // 只绑回环，局域网与外网都不可达；冒烟测试不起服务。
+  assert.match(main, /server\.listen\(config\.port, "127\.0\.0\.1"/)
+  assert.match(main, /if \(!config\.enabled \|\| isSmokeTest\) return/)
+  // 退出时必须关掉监听，不能把端口留在后台。
+  const beforeQuit = main.slice(main.indexOf('app.on("before-quit"'), main.indexOf('app.on("before-quit"') + 200)
+  assert.match(beforeQuit, /stopLocalTaskApi\(\)/)
+
+  // 能力串与其它凭据同等对待：safeStorage 加密，renderer 拿不到裸串。
+  assert.match(main, /localTaskApiToken: electron\.safeStorage\.encryptString/)
+  assert.doesNotMatch(preload, /localTaskApiToken/)
+  // 暴露给界面的只有完整 URL，且可以轮换。
+  assert.match(main, /handleTrusted\("localTaskApi:rotateToken"/)
+
+  // 复制走主进程 clipboard：renderer 在 file:// 下不是安全上下文，
+  // navigator.clipboard 直接不可用，按钮会毫无反应。
+  assert.match(main, /handleTrusted\("localTaskApi:copyUrl"/)
+  assert.match(main, /electron\.clipboard\.writeText\(url\)/)
+  assert.doesNotMatch(mainRenderer, /navigator\.clipboard/)
+
+  // 接口本身没有任何写入路径。
+  const apiModule = readFileSync(join(root, 'src', 'main', 'local-task-api.js'), 'utf8')
+  assert.doesNotMatch(apiModule, /createTodo|updateTodo|removeTodo|writeJson/)
+  assert.match(apiModule, /method[\s\S]{0,60}!== "GET"/)
 })
 
 test('pushing a plan to QQ is opt-in and only covers auto-generated plans', () => {

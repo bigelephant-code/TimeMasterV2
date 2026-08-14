@@ -2361,7 +2361,10 @@ input:focus, textarea:focus, select:focus { background: var(--bg-soft); box-shad
 .coach-settings-time-title small { color: var(--text-faint); font-size: 9px; }
 .coach-settings-time-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .coach-settings-time-grid .full { grid-column: 1 / -1; }
-.coach-settings-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.coach-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; }
+.coach-settings-actions small { color: var(--text-faint); font-size: 10.5px; }
+.coach-settings-error { display: block; margin-top: 6px; color: var(--danger, #ff5d5d); font-size: 10.5px; line-height: 1.5; }
+.coach-settings-field input[readonly] { color: var(--text-faint); font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; }
 .coach-settings-status { min-height: 17px; margin-top: 7px; color: var(--text-faint); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
 .coach-settings-status.success { color: var(--coach-next); }
 .coach-settings-status.error { color: var(--danger); }

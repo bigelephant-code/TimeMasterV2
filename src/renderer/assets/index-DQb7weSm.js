@@ -3620,7 +3620,7 @@ const AICoachSettings = {
         busy.value = "";
       }
     }
-    onMounted(load);
+    onMounted(() => { void load(); void loadTaskApi(); });
     const switchRow = (title, description, key) => createBaseVNode("div", { class: "coach-settings-switch" }, [
       createBaseVNode("div", null, [createBaseVNode("div", { class: "k" }, title), createBaseVNode("div", { class: "d" }, description)]),
       createBaseVNode("button", {
@@ -3632,6 +3632,54 @@ const AICoachSettings = {
         onClick: () => update(key, !draft.value[key])
       }, null, 10, ["aria-checked", "disabled"])
     ]);
+    // 本机只读接口：供 OpenClaw Agent 查询「今天的待办」。地址里的随机串即凭据，
+    // 因此界面只展示完整 URL 供复制，并提供轮换。
+    const taskApi = ref({ config: { enabled: false }, url: "", running: false, error: null });
+    const loadTaskApi = async () => {
+      try {
+        taskApi.value = await window.api.aiCoach.getLocalTaskApi();
+      } catch (error) {
+        taskApi.value = { config: { enabled: false }, url: "", running: false, error: coachErrorMessage(error, "无法读取本机接口状态") };
+      }
+    };
+    const toggleTaskApi = async () => {
+      if (busy.value) return;
+      busy.value = "task-api";
+      try {
+        taskApi.value = await window.api.aiCoach.setLocalTaskApiEnabled(!taskApi.value.config.enabled);
+        status.value = { kind: "success", text: taskApi.value.config.enabled ? "本机只读接口已开启。" : "本机只读接口已关闭。" };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "无法切换本机接口") };
+      } finally {
+        busy.value = "";
+      }
+    };
+    const rotateTaskApi = async () => {
+      if (busy.value) return;
+      busy.value = "task-api";
+      try {
+        taskApi.value = await window.api.aiCoach.rotateLocalTaskApiToken();
+        status.value = { kind: "success", text: "地址已重新生成，请把新地址同步到 Agent 指令里，旧地址立即失效。" };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "无法重新生成地址") };
+      } finally {
+        busy.value = "";
+      }
+    };
+    const copyTaskApiUrl = async () => {
+      if (busy.value) return;
+      busy.value = "task-api";
+      try {
+        const result = await window.api.aiCoach.copyLocalTaskApiUrl();
+        status.value = result?.ok
+          ? { kind: "success", text: result.message }
+          : { kind: "error", text: result?.message || "复制失败，请手动选中地址复制。" };
+      } catch (error) {
+        status.value = { kind: "error", text: coachErrorMessage(error, "复制失败，请手动选中地址复制。") };
+      } finally {
+        busy.value = "";
+      }
+    };
     const textField = (label, key, options = {}) => createBaseVNode("div", { class: normalizeClass(["field coach-settings-field", { full: options.full }]) }, [
       createBaseVNode("label", { for: `coach-${key}` }, label),
       createBaseVNode("input", {
@@ -3699,7 +3747,38 @@ const AICoachSettings = {
         createBaseVNode("div", { class: "coach-settings-options" }, [
           switchRow("发送待办备注", "默认关闭；开启后备注会随请求交给 OpenClaw", "includeNote"),
           switchRow("新待办自动准备拆解", "任何方式新建的待办都会在后台生成拆解草案，不弹窗、不改动待办时间", "autoPlanNewTodos"),
-          switchRow("把拆解推送到 QQ", "仅推送新建时自动生成的拆解：标题、下一步和步骤清单。需要先配置并启用 QQ Bot 主提醒", "sendPlanToQq")
+          switchRow("把拆解推送到 QQ", "仅推送新建时自动生成的拆解：标题、下一步和步骤清单。需要先配置并启用 QQ Bot 主提醒", "sendPlanToQq"),
+          createBaseVNode("div", { class: "coach-settings-switch" }, [
+            createBaseVNode("div", null, [
+              createBaseVNode("div", { class: "k" }, "允许 Agent 查询今天的待办"),
+              createBaseVNode("div", { class: "d" }, "在本机开一个只读接口，让 QQ 里的提问能查到今天的待办。只返回标题、时间、优先级和四象限，不含备注、费用与历史，也没有任何写入入口")
+            ]),
+            createBaseVNode("button", {
+              type: "button",
+              class: normalizeClass(["toggle", { on: taskApi.value.config.enabled }]),
+              role: "switch",
+              "aria-checked": Boolean(taskApi.value.config.enabled),
+              "aria-label": "允许 Agent 查询今天的待办",
+              disabled: Boolean(busy.value),
+              onClick: toggleTaskApi
+            }, null, 10, ["aria-checked", "disabled"])
+          ]),
+          taskApi.value.config.enabled ? createBaseVNode("div", { class: "coach-settings-field full" }, [
+            createBaseVNode("label", null, "接口地址（本身就是凭据，只粘贴到本机 Agent 配置）"),
+            createBaseVNode("input", {
+              type: "text",
+              readonly: "",
+              value: taskApi.value.url || "（正在准备…）",
+              spellcheck: "false",
+              onFocus: (event) => event.target.select()
+            }, null, 8, ["value"]),
+            createBaseVNode("div", { class: "coach-settings-actions" }, [
+              createBaseVNode("button", { type: "button", class: "ghost coach-step-btn", disabled: Boolean(busy.value) || !taskApi.value.url, onClick: copyTaskApiUrl }, "复制地址", 8, ["disabled"]),
+              createBaseVNode("button", { type: "button", class: "ghost coach-step-btn", disabled: Boolean(busy.value), onClick: rotateTaskApi }, "重新生成", 8, ["disabled"]),
+              createBaseVNode("small", null, taskApi.value.running ? "已在监听" : "未在监听", 1)
+            ]),
+            taskApi.value.error ? createBaseVNode("small", { class: "coach-settings-error" }, String(taskApi.value.error), 1) : null
+          ]) : null
         ]),
         createBaseVNode("div", { class: "coach-settings-time" }, [
           createBaseVNode("div", { class: "coach-settings-time-title" }, [createBaseVNode("strong", null, "默认可安排时间"), createBaseVNode("small", null, "AI 不会覆盖已经设置的固定时间")]),

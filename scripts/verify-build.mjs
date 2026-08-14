@@ -12,6 +12,7 @@ const required = [
   'out/main/remote-reminders.js',
   'out/main/gateway-direct-send.js',
   'out/main/ai-step-todos.js',
+  'out/main/local-task-api.js',
   'out/main/ai-task-coach.js',
   'out/preload/index.js',
   'out/renderer/index.html',

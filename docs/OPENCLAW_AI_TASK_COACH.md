@@ -229,6 +229,59 @@ openclaw --profile timemaster-ai sandbox explain --agent timemaster-coach
 
 AI 排程只写 `date`、`startTime`、`endTime`、兼容 `time`、提醒去重键和 `updatedAt`，不会写自动延期历史。
 
+## 让 QQ 里的提问查到今天的待办
+
+默认关闭。开启后时间大师在本机开一个**只读**接口，供 OpenClaw Agent 回答「今天有哪些待办」这类问题。
+
+| | |
+| --- | --- |
+| 监听 | 仅 `127.0.0.1`，局域网与外网都不可达 |
+| 方法 | 只有 `GET`，没有任何写入或删除入口 |
+| 范围 | 只有今天；日期由主进程决定，不接受调用方指定 |
+| 字段 | 标题、起止时间、优先级、四象限、是否完成 |
+| 不返回 | 待办 ID、备注、清单、耗时、费用、专注记录、目标、延期与完成历史 |
+
+**备注永远不返回**，与设置里的「发送待办备注」无关——那个开关只作用于 AI 拆解请求。
+
+### 凭据形式与它的代价
+
+鉴权用**能力 URL**：地址里带一段 32 位随机串，它本身就是凭据。时间大师侧同样经 `safeStorage` 加密保存，renderer 只能拿到完整 URL 用于复制，取不到裸串。
+
+这个地址必须写进 Agent 指令，因此**会进入模型上下文与会话日志**。选择这种形式而不是通用 Token，正是为了把泄露后果限定死：拿到它只能读今天的待办标题，不能写、不能读其它任何数据。设置页提供「重新生成」，轮换后旧地址立即失效。
+
+### Agent 通过 MCP 访问，而不是 web_fetch
+
+`web_fetch` **无法**访问这个接口。OpenClaw 对它有 SSRF 防护，禁止回环与内网地址，且不可配置放行——`tools.web.fetch.ssrfPolicy` 的 schema 是 `.strict()` 的，只有 `allowRfc2544BenchmarkRange` 和 `allowIpv6UniqueLocalRange` 两个无关字段。强行让 Agent 访问本机服务本就是典型的 SSRF 风险面，这个限制是刻意的，不应绕过。
+
+正确做法是走官方扩展点 MCP：仓库内的 `tools/timemaster-mcp-server.mjs` 是一个最小 stdio MCP server（手写 JSON-RPC，无新增依赖），由 OpenClaw 直接拉起，因此不受该防护约束。它只暴露一个工具 `list_today_todos`，转发上面那个只读接口的结果。
+
+这样做同时更安全：**能力 URL 存放在 `mcp.servers.timemaster.env` 里，永远不进入模型上下文与会话日志**；Agent 侧只需放行 `timemaster__*` 这一组工具，不需要 `web_fetch` 这种可访问任意外网的权限。
+
+### 配置步骤
+
+1. 设置 → AI 任务教练 → 打开「允许 Agent 查询今天的待办」，点「复制地址」。
+2. 注册 MCP server（`<地址>` 换成刚复制的值）：
+
+   ```bash
+   openclaw mcp add timemaster --command node --arg D:/CodexWorkspace/LiteCal/tools/timemaster-mcp-server.mjs --env TIMEMASTER_TODAY_URL=<地址>
+   ```
+
+3. 给提醒 Agent 放行这组工具：`tools.alsoAllow` 加入 `timemaster__*`。其余权限不变，仍无文件、Shell、桌面与节点访问，也不需要 `web_fetch`。
+4. 验证并重启：
+
+   ```bash
+   openclaw mcp probe timemaster
+   openclaw gateway restart
+   ```
+
+   `probe` 应报告 `1 tools`。
+
+5. 在 QQ 里问「今天有什么待办」。
+
+时间大师必须处于运行状态，接口才可达；退出后 MCP 工具会返回错误，Agent 会如实告知而不是编造。
+
+重新生成地址后，`mcp.servers.timemaster.env` 里的值必须同步更新，否则工具会一直失败。
+
 ## 结构化响应合同
 
 当前实现只接受一个匹配的客户端函数调用：

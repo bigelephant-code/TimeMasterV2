@@ -17,6 +17,7 @@ export default defineConfig({
           'remote-reminders': r('src/main/remote-reminders.js'),
           'gateway-direct-send': r('src/main/gateway-direct-send.js'),
           'ai-step-todos': r('src/main/ai-step-todos.js'),
+          'local-task-api': r('src/main/local-task-api.js'),
           'ai-task-coach': r('src/main/ai-task-coach.js')
         }
       }

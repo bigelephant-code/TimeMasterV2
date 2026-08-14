@@ -6,6 +6,7 @@ const node_crypto = require("node:crypto");
 const promises = require("node:fs/promises");
 const node_zlib = require("node:zlib");
 const node_url = require("node:url");
+const node_http = require("node:http");
 const { normalizeTaskTime, taskStartTime, taskEndTime, taskEndsNextDay, taskRolloverEligible } = require("./task-time.js");
 const { normalizeTodoRolloverHistory, recordTodoRollover } = require("./todo-rollovers.js");
 const { normalizeTodoCompletionHistory, recordTodoCompletion } = require("./todo-completions.js");
@@ -26,6 +27,13 @@ const {
   dueRemoteReminders
 } = require("./remote-reminders.js");
 const { deliverDirectReminder, probeDirectGateway } = require("./gateway-direct-send.js");
+const {
+  DEFAULT_LOCAL_TASK_API_PORT,
+  createCapabilityToken,
+  normalizeLocalTaskApiConfig,
+  capabilityUrl,
+  handleTaskApiRequest
+} = require("./local-task-api.js");
 const {
   MAX_STEPS_PER_BATCH,
   promotedStepIds,
@@ -162,6 +170,7 @@ let dataBackupFile = "";
 let settingsFile = "";
 let secretsFile = "";
 let remoteReminderOutboxFile = "";
+let localTaskApiServer = null;
 let recoveredDataFromBackup = false;
 let remoteReminderOutbox = normalizeRemoteReminderOutbox();
 let remoteReminderDrainPromise = null;
@@ -264,6 +273,7 @@ function defaultSettings() {
       lunch: { start: "12:00", end: "13:30" },
       bufferMinutes: 10
     },
+    localTaskApi: { enabled: false, port: DEFAULT_LOCAL_TASK_API_PORT },
     window: { width: 1040, height: 700, x: null, y: null },
     widget: {
       enabled: true,
@@ -429,6 +439,7 @@ function initStore() {
     lunch: normalizedAiTaskCoach.lunch,
     bufferMinutes: normalizedAiTaskCoach.bufferMinutes
   };
+  settings.localTaskApi = normalizeLocalTaskApiConfig(settings.localTaskApi);
   remoteReminderOutbox = pruneRemoteReminderOutbox(readJson(remoteReminderOutboxFile, null), {
     now: Date.now(),
     recoverAttempting: true
@@ -504,7 +515,8 @@ function patchSettings(patch) {
     widget: { ...settings.widget, ...patch.widget || {} },
     countdown: { ...settings.countdown, ...patch.countdown || {} },
     remoteReminder: { ...settings.remoteReminder, ...patch.remoteReminder || {} },
-    aiTaskCoach: { ...settings.aiTaskCoach, ...patch.aiTaskCoach || {} }
+    aiTaskCoach: { ...settings.aiTaskCoach, ...patch.aiTaskCoach || {} },
+    localTaskApi: { ...settings.localTaskApi, ...patch.localTaskApi || {} }
   };
   scheduleFlush();
   return settings;
@@ -774,6 +786,89 @@ function readAiTaskCoachToken() {
   } catch {
     throw new Error("已保存的 Gateway Token 无法解密，请重新输入并保存。");
   }
+}
+// 能力 URL 里的随机串就是凭据，因此与其它 Token 同等对待：safeStorage 加密，
+// renderer 只能拿到完整 URL 用于展示和复制，拿不到独立的原始串。
+function readLocalTaskApiToken() {
+  if (!secretsFile) return "";
+  const secrets = remoteReminderSecretsRaw();
+  const encrypted = typeof secrets?.localTaskApiToken === "string" ? secrets.localTaskApiToken : "";
+  if (!encrypted) return "";
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法读取本地接口凭据。");
+  try {
+    return electron.safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+  } catch {
+    throw new Error("已保存的本地接口凭据无法解密，请重新生成。");
+  }
+}
+function writeLocalTaskApiToken(token) {
+  if (!electron.safeStorage.isEncryptionAvailable()) throw new Error("Windows 安全存储当前不可用，无法保存本地接口凭据。");
+  writeJsonAtomic(secretsFile, {
+    ...remoteReminderSecretsRaw(),
+    version: 1,
+    localTaskApiToken: electron.safeStorage.encryptString(String(token)).toString("base64")
+  });
+}
+function ensureLocalTaskApiToken() {
+  const existing = readLocalTaskApiToken();
+  if (/^[a-f0-9]{32}$/.test(existing)) return existing;
+  const token = createCapabilityToken();
+  writeLocalTaskApiToken(token);
+  return token;
+}
+function stopLocalTaskApi() {
+  if (!localTaskApiServer) return;
+  try {
+    localTaskApiServer.close();
+  } catch (error) {
+    console.warn("[local-task-api] 关闭失败：", String(error?.message || error));
+  }
+  localTaskApiServer = null;
+}
+function startLocalTaskApi() {
+  stopLocalTaskApi();
+  const config = normalizeLocalTaskApiConfig(settings.localTaskApi);
+  if (!config.enabled || isSmokeTest) return;
+  let token = "";
+  try {
+    token = ensureLocalTaskApiToken();
+  } catch (error) {
+    console.warn("[local-task-api] 无法准备凭据：", String(error?.message || error));
+    return;
+  }
+  const server = node_http.createServer((req, res) => {
+    const result = handleTaskApiRequest(
+      { method: req.method, url: req.url, remoteAddress: req.socket?.remoteAddress },
+      { token, todos: data.todos, today: localYmd$1(), now: Date.now() }
+    );
+    const body = JSON.stringify(result.body);
+    res.writeHead(result.status, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff"
+    });
+    res.end(body);
+  });
+  server.on("error", (error) => {
+    console.warn("[local-task-api] 监听失败：", String(error?.message || error));
+    localTaskApiServer = null;
+  });
+  // 只绑定回环地址：局域网与外网都不可达。
+  server.listen(config.port, "127.0.0.1", () => {
+    console.log(`[local-task-api] 已在 127.0.0.1:${config.port} 提供只读今日待办`);
+  });
+  localTaskApiServer = server;
+}
+function publicLocalTaskApiConfig() {
+  const config = normalizeLocalTaskApiConfig(settings.localTaskApi);
+  let url = "";
+  let error = null;
+  try {
+    url = config.enabled ? capabilityUrl(config, readLocalTaskApiToken()) : "";
+  } catch (tokenError) {
+    error = String(tokenError?.message || tokenError);
+  }
+  return { config, url, running: Boolean(localTaskApiServer), error };
 }
 function publicAiTaskCoachConfig() {
   const normalized = normalizeAiTaskCoachConfig(settings.aiTaskCoach);
@@ -3498,6 +3593,35 @@ function registerIpc() {
     ensureMainWindowSender(event);
     return sendRemoteReminderTest();
   });
+  handleTrusted("localTaskApi:getConfig", (event) => {
+    ensureMainWindowSender(event);
+    return publicLocalTaskApiConfig();
+  });
+  handleTrusted("localTaskApi:setEnabled", (event, enabled) => {
+    ensureMainWindowSender(event);
+    const next = normalizeLocalTaskApiConfig({ ...settings.localTaskApi, enabled: enabled === true });
+    writeJsonAtomic(settingsFile, { ...settings, localTaskApi: next });
+    settings = { ...settings, localTaskApi: next };
+    startLocalTaskApi();
+    pushSettings();
+    return publicLocalTaskApiConfig();
+  });
+  handleTrusted("localTaskApi:copyUrl", (event) => {
+    ensureMainWindowSender(event);
+    // renderer 走 navigator.clipboard 在 file:// 下不是安全上下文，直接不可用；
+    // 复制交给主进程，顺带避免把地址再经手一次渲染层。
+    const { url } = publicLocalTaskApiConfig();
+    if (!url) return { ok: false, message: "还没有可复制的地址。" };
+    electron.clipboard.writeText(url);
+    return { ok: true, message: "地址已复制。它本身就是凭据，请只粘贴到本机 Agent 配置里。" };
+  });
+  handleTrusted("localTaskApi:rotateToken", (event) => {
+    ensureMainWindowSender(event);
+    // 轮换后旧地址立即失效，Agent 指令里的旧 URL 必须同步更新。
+    writeLocalTaskApiToken(createCapabilityToken());
+    startLocalTaskApi();
+    return publicLocalTaskApiConfig();
+  });
   handleTrusted("aiCoach:getConfig", (event) => {
     ensureMainWindowSender(event);
     return publicAiTaskCoachConfig();
@@ -3824,6 +3948,7 @@ if (!gotLock) {
 function bootstrap() {
   initStore();
   registerIpc();
+  startLocalTaskApi();
   const allowWidgetGeolocation = (webContents, permission) => permission === "geolocation" && webContents === getWidgetWindow()?.webContents;
   electron.session.defaultSession.setPermissionCheckHandler(allowWidgetGeolocation);
   electron.session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -4341,6 +4466,7 @@ function refreshTrayMenu() {
 electron.app.on("before-quit", () => {
   setQuitting(true);
   stopReminders();
+  stopLocalTaskApi();
   flushNow();
 });
 electron.app.on("window-all-closed", () => {
