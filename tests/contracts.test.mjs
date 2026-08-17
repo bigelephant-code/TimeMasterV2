@@ -422,6 +422,33 @@ test('widget expense quick entry can be cancelled without writing a record', () 
   assert.match(closeSource, /ledgerNote\.value = ""/)
 })
 
+test('single expense rows edit amount and note through a guarded inline form', () => {
+  const updateSource = main.slice(main.indexOf('updateExpense(id, patch = {})'), main.indexOf('removeExpense(id)'))
+  assert.match(main, /require\("\.\/expense-entries\.js"\)/)
+  assert.match(updateSource, /updateExpenseEntry\(data\.expenses, id, patch\)/)
+  assert.match(updateSource, /goal\.updatedAt = result\.entry\.updatedAt/)
+  assert.doesNotMatch(updateSource, /patch\.cat/)
+  assert.doesNotMatch(updateSource, /patch\.date/)
+  assert.match(main, /if \(r\?\.ok && r\.changed\) pushSnapshot\(\)/)
+
+  assert.match(mainRenderer, /const entryEdit = ref\(null\)/)
+  assert.match(mainRenderer, /function openEntryEdit\(entry, trigger\)/)
+  assert.match(mainRenderer, /function saveEntryEdit\(\)/)
+  assert.match(mainRenderer, /actions\.updateExpense\(editing\.id, \{\s*amount,\s*note: editing\.note,\s*expectedUpdatedAt: editing\.expectedUpdatedAt/)
+  assert.match(mainRenderer, /editing\.error = result\?\.reason/)
+  assert.match(mainRenderer, /if \(event\.key !== "Escape"\) return/)
+  assert.match(mainRenderer, /"修改金额和费用说明"/)
+  assert.match(mainRenderer, /"保存修改"/)
+  assert.match(mainRenderer, /"分类、日期和登记时间保持不变"/)
+  assert.match(bundledRenderer, /pencil: "M4 20h4l11-11/)
+
+  assert.match(expenseStyles, /\.exp-item\.editing\[data-v-bfbd477c\]/)
+  assert.match(expenseStyles, /\.exp-edit-fields\[data-v-bfbd477c\]/)
+  assert.match(expenseStyles, /\.exp-edit-error\[data-v-bfbd477c\]/)
+  assert.match(expenseStyles, /@media \(hover: none\)/)
+  assert.match(widgetRenderer, /查看或编辑今天的 \$\{statsOf\(g\)\.todayCount\} 笔费用明细/)
+})
+
 test('widget focus card flips into a prominent timer and returns directly on cancel', () => {
   const focusCardSource = widgetRenderer.slice(widgetRenderer.indexOf('class: normalizeClass(["wx-focusbar"'), widgetRenderer.indexOf('class: "wx-goals"'))
   assert.match(widgetRenderer, /class: "wx-focus-flipper"/)

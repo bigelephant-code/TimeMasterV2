@@ -1700,7 +1700,7 @@ const _sfc_main = {
                           key: 0,
                           type: "button",
                           class: normalizeClass(["wx-led-today", { none: !statsOf(g)?.todayCount }]),
-                          title: statsOf(g)?.todayCount ? `查看今天的 ${statsOf(g).todayCount} 笔费用明细` : "打开费用，查看或补记今天的记录",
+                          title: statsOf(g)?.todayCount ? `查看或编辑今天的 ${statsOf(g).todayCount} 笔费用明细` : "打开费用，查看或补记今天的记录",
                           disabled: openingMain.value,
                           onMousedown: _cache[3] || (_cache[3] = withModifiers(() => {
                           }, ["prevent", "stop"])),

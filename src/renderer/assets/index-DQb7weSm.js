@@ -2161,8 +2161,9 @@ const _sfc_main$4 = {
       const p2 = (n) => String(n).padStart(2, "0");
       const hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
       const day = ymdOf(d);
-      if (day === entry.date) return { text: hm, late: false };
-      return { text: `${Number(day.slice(5, 7))}/${Number(day.slice(8))} ${hm} 补`, late: true };
+      const edited = Number(entry.updatedAt) > Number(entry.at || 0);
+      if (day === entry.date) return { text: hm, late: false, edited };
+      return { text: `${Number(day.slice(5, 7))}/${Number(day.slice(8))} ${hm} 补`, late: true, edited };
     }
     async function removeEntry(entry) {
       const ok = await confirmDialog(
@@ -2173,12 +2174,78 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
         { okText: "删除" }
       );
       if (!ok) return;
-      await actions.removeExpense(entry.id);
+      const result = await actions.removeExpense(entry.id);
+      if (result?.ok && entryEdit.value?.id === entry.id) {
+        entryEdit.value = null;
+        entryEditTrigger = null;
+      }
     }
     const firstActiveCategory = () => activeCats.value.find((c) => c.group === "opex")?.id || activeCats.value[0]?.id || "";
     const draft = ref({ cat: firstActiveCategory(), amount: "", note: "" });
     const amountEl = ref(null);
     const flash = ref("");
+    const entryEdit = ref(null);
+    let entryEditTrigger = null;
+    const canSaveEntryEdit = computed(() => {
+      const amount = Number(entryEdit.value?.amount);
+      return Boolean(entryEdit.value) && !entryEdit.value.busy && Number.isFinite(amount) && amount !== 0;
+    });
+    function openEntryEdit(entry, trigger) {
+      if (entryEdit.value?.busy) return;
+      entryEditTrigger = trigger || null;
+      entryEdit.value = {
+        id: entry.id,
+        amount: String(entry.amount),
+        note: String(entry.note || ""),
+        expectedUpdatedAt: Number(entry.updatedAt || entry.at || 0),
+        busy: false,
+        error: ""
+      };
+      nextTick(() => document.querySelector(".exp-item.editing .exp-edit-amount")?.focus());
+    }
+    function cancelEntryEdit() {
+      if (entryEdit.value?.busy) return;
+      entryEdit.value = null;
+      nextTick(() => entryEditTrigger?.focus());
+    }
+    function onEntryEditKeydown(event) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancelEntryEdit();
+    }
+    async function saveEntryEdit() {
+      const editing = entryEdit.value;
+      if (!editing || editing.busy) return;
+      const amount = Number(editing.amount);
+      if (!Number.isFinite(amount) || amount === 0) {
+        editing.error = "请输入不为 0 的有效金额。";
+        return;
+      }
+      editing.busy = true;
+      editing.error = "";
+      try {
+        const result = await actions.updateExpense(editing.id, {
+          amount,
+          note: editing.note,
+          expectedUpdatedAt: editing.expectedUpdatedAt
+        });
+        if (!result?.ok) {
+          editing.error = result?.reason || "保存失败，请稍后重试。";
+          return;
+        }
+        const updated = result.entry;
+        flash.value = result.changed ? `${catName(updated.cat)} ${formatGoalNumber(updated.amount)} 已更新` : "这笔费用没有变化";
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => flash.value = "", 2400);
+        entryEdit.value = null;
+        await nextTick();
+        entryEditTrigger?.focus();
+      } catch (error) {
+        editing.error = error?.message || "保存失败，请稍后重试。";
+      } finally {
+        if (entryEdit.value?.id === editing.id) entryEdit.value.busy = false;
+      }
+    }
     const canSubmit = computed(() => Boolean(draft.value.cat) && Number.isFinite(Number(draft.value.amount)) && Number(draft.value.amount) !== 0);
     let flashTimer = null;
     async function pickCat(catId) {
@@ -2233,6 +2300,19 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
       () => state.selected,
       (day) => {
         if (!isRangeMode.value) picked.value = /* @__PURE__ */ new Set([day]);
+        if (!entryEdit.value?.busy) {
+          entryEdit.value = null;
+          entryEditTrigger = null;
+        }
+      }
+    );
+    watch(
+      () => goal.value?.id,
+      () => {
+        if (!entryEdit.value?.busy) {
+          entryEdit.value = null;
+          entryEditTrigger = null;
+        }
       }
     );
     watch(
@@ -2560,7 +2640,7 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                 (openBlock(true), createElementBlock(Fragment, null, renderList(dayRows.value, (e) => {
                   return openBlock(), createElementBlock("div", {
                     key: e.id,
-                    class: "exp-item"
+                    class: normalizeClass(["exp-item", { editing: entryEdit.value?.id === e.id }])
                   }, [
                     createBaseVNode("span", {
                       class: "dot",
@@ -2575,22 +2655,99 @@ ${entry.date}　${catName(entry.cat)}　${formatGoalNumber(entry.amount)}${unit.
                     createBaseVNode("span", _hoisted_57, toDisplayString(unref(formatGoalNumber)(e.amount)) + toDisplayString(unit.value), 1),
                     loggedAt(e) ? (openBlock(), createElementBlock("span", {
                       key: 2,
-                      class: normalizeClass(["at", { late: loggedAt(e).late }]),
-                      title: loggedAt(e).late ? `这笔算在 ${e.date}，实际是登记时间那天补录的` : "登记时间"
+                      class: normalizeClass(["at", { late: loggedAt(e).late, edited: loggedAt(e).edited }]),
+                      title: `${loggedAt(e).late ? `这笔算在 ${e.date}，实际是登记时间那天补录的` : "登记时间"}${loggedAt(e).edited ? "；金额或费用说明已修改" : ""}`
                     }, toDisplayString(loggedAt(e).text), 11, _hoisted_58)) : createCommentVNode("", true),
-                    createBaseVNode("button", {
-                      type: "button",
-                      class: "del",
-                      title: "删除这一笔",
-                      "aria-label": `删除${catName(e.cat)} ${formatGoalNumber(e.amount)}${unit.value}`,
-                      onClick: ($event) => removeEntry(e)
+                    createBaseVNode("div", { class: "exp-item-actions" }, [
+                      createBaseVNode("button", {
+                        type: "button",
+                        class: "edit",
+                        title: "修改金额和费用说明",
+                        "aria-label": `修改${catName(e.cat)} ${formatGoalNumber(e.amount)}${unit.value}`,
+                        disabled: entryEdit.value?.busy,
+                        onClick: ($event) => openEntryEdit(e, $event.currentTarget)
+                      }, [
+                        createVNode(_sfc_main$b, {
+                          name: "pencil",
+                          size: 12
+                        })
+                      ], 8, ["aria-label", "disabled", "onClick"]),
+                      createBaseVNode("button", {
+                        type: "button",
+                        class: "del",
+                        title: "删除这一笔",
+                        "aria-label": `删除${catName(e.cat)} ${formatGoalNumber(e.amount)}${unit.value}`,
+                        disabled: entryEdit.value?.busy,
+                        onClick: ($event) => removeEntry(e)
+                      }, [
+                        createVNode(_sfc_main$b, {
+                          name: "trash",
+                          size: 12
+                        })
+                      ], 8, ["aria-label", "disabled", "onClick"])
+                    ]),
+                    entryEdit.value?.id === e.id ? (openBlock(), createElementBlock("div", {
+                      key: 3,
+                      class: "exp-edit",
+                      onKeydown: onEntryEditKeydown
                     }, [
-                      createVNode(_sfc_main$b, {
-                        name: "trash",
-                        size: 12
-                      })
-                    ], 8, _hoisted_59)
-                  ]);
+                      createBaseVNode("div", { class: "exp-edit-fields" }, [
+                        createBaseVNode("label", { class: "exp-edit-field" }, [
+                          createBaseVNode("span", null, "金额"),
+                          createBaseVNode("div", { class: "exp-edit-money" }, [
+                            createBaseVNode("span", { class: "exp-edit-currency", "aria-hidden": "true" }, toDisplayString(unit.value), 1),
+                            withDirectives(createBaseVNode("input", {
+                              "onUpdate:modelValue": ($event) => entryEdit.value.amount = $event,
+                              class: "exp-edit-amount",
+                              type: "number",
+                              step: "any",
+                              inputmode: "decimal",
+                              "aria-label": `修改金额，单位${unit.value}`,
+                              disabled: entryEdit.value.busy,
+                              onKeyup: withKeys(saveEntryEdit, ["enter"])
+                            }, null, 40, ["onUpdate:modelValue", "aria-label", "disabled"]), [
+                              [vModelText, entryEdit.value.amount]
+                            ])
+                          ])
+                        ]),
+                        createBaseVNode("label", { class: "exp-edit-field" }, [
+                          createBaseVNode("span", null, "费用说明"),
+                          withDirectives(createBaseVNode("input", {
+                            "onUpdate:modelValue": ($event) => entryEdit.value.note = $event,
+                            class: "exp-edit-note",
+                            maxlength: "60",
+                            placeholder: "可留空",
+                            disabled: entryEdit.value.busy,
+                            onKeyup: withKeys(saveEntryEdit, ["enter"])
+                          }, null, 40, ["onUpdate:modelValue", "disabled"]), [
+                            [vModelText, entryEdit.value.note]
+                          ])
+                        ])
+                      ]),
+                      entryEdit.value.error ? (openBlock(), createElementBlock("div", {
+                        key: 0,
+                        class: "exp-edit-error",
+                        role: "alert"
+                      }, toDisplayString(entryEdit.value.error), 1)) : createCommentVNode("", true),
+                      createBaseVNode("div", { class: "exp-edit-footer" }, [
+                        createBaseVNode("span", { class: "exp-edit-hint" }, "分类、日期和登记时间保持不变"),
+                        createBaseVNode("div", { class: "exp-edit-actions" }, [
+                          createBaseVNode("button", {
+                            type: "button",
+                            class: "ghost",
+                            disabled: entryEdit.value.busy,
+                            onClick: cancelEntryEdit
+                          }, "取消", 8, ["disabled"]),
+                          createBaseVNode("button", {
+                            type: "button",
+                            class: "primary",
+                            disabled: !canSaveEntryEdit.value,
+                            onClick: saveEntryEdit
+                          }, toDisplayString(entryEdit.value.busy ? "保存中…" : "保存修改"), 9, ["disabled"])
+                        ])
+                      ])
+                    ], 32)) : createCommentVNode("", true)
+                  ], 2);
                 }), 128)),
                 !dayRows.value.length ? (openBlock(), createElementBlock("div", _hoisted_60, toDisplayString(unref(state).selected) + " 还没有记录。选个类别，输入金额即可记第一笔。", 1)) : createCommentVNode("", true)
               ])

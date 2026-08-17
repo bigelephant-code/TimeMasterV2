@@ -827,7 +827,7 @@ input.exp-money[data-v-bfbd477c] {
 }
 .exp-item[data-v-bfbd477c] {
   display: grid;
-  grid-template-columns: 7px minmax(42px, 62px) minmax(0, 1fr) minmax(58px, auto) 42px 20px;
+  grid-template-columns: 7px minmax(42px, 58px) minmax(0, 1fr) minmax(58px, auto) 50px 44px;
   align-items: center;
   gap: 5px;
   padding: 5px 5px;
@@ -836,6 +836,10 @@ input.exp-money[data-v-bfbd477c] {
 }
 .exp-item[data-v-bfbd477c]:hover {
   background: var(--bg-hover);
+}
+.exp-item.editing[data-v-bfbd477c] {
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-soft));
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .exp-item > .dot[data-v-bfbd477c] {
   grid-column: 1;
@@ -877,8 +881,21 @@ input.exp-money[data-v-bfbd477c] {
 .exp-item .at.late[data-v-bfbd477c] {
   color: var(--warn);
 }
-.exp-item .del[data-v-bfbd477c] {
+.exp-item .at.edited[data-v-bfbd477c]::after {
+  content: "改";
+  margin-left: 2px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+.exp-item .exp-item-actions[data-v-bfbd477c] {
   grid-column: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.exp-item .exp-item-actions button[data-v-bfbd477c] {
   display: grid;
   width: 20px;
   height: 20px;
@@ -886,12 +903,116 @@ input.exp-money[data-v-bfbd477c] {
   opacity: 0;
   color: var(--text-faint);
 }
-.exp-item:hover .del[data-v-bfbd477c],
-.exp-item:focus-within .del[data-v-bfbd477c] {
+.exp-item:hover .exp-item-actions button[data-v-bfbd477c],
+.exp-item:focus-within .exp-item-actions button[data-v-bfbd477c],
+.exp-item.editing .exp-item-actions button[data-v-bfbd477c] {
   opacity: 1;
 }
-.exp-item .del[data-v-bfbd477c]:hover {
+.exp-item .exp-item-actions button[data-v-bfbd477c]:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.exp-item .edit[data-v-bfbd477c]:hover:not(:disabled) {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.exp-item .del[data-v-bfbd477c]:hover:not(:disabled) {
   color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.exp-edit[data-v-bfbd477c] {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: 3px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 84%, var(--accent) 4%);
+}
+.exp-edit-fields[data-v-bfbd477c] {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
+  gap: 7px;
+}
+.exp-edit-field[data-v-bfbd477c] {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.exp-edit-money[data-v-bfbd477c] {
+  display: flex;
+  min-width: 0;
+  height: 30px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+.exp-edit-money[data-v-bfbd477c]:focus-within,
+.exp-edit-note[data-v-bfbd477c]:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: 1px;
+}
+.exp-edit-currency[data-v-bfbd477c] {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0 7px;
+  border-right: 1px solid var(--border-soft);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.exp-edit-amount[data-v-bfbd477c] {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.exp-edit-amount[data-v-bfbd477c]:focus-visible {
+  outline: none;
+}
+.exp-edit-note[data-v-bfbd477c] {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+}
+.exp-edit-error[data-v-bfbd477c] {
+  margin-top: 6px;
+  color: var(--danger);
+  font-size: 10.5px;
+}
+.exp-edit-footer[data-v-bfbd477c] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+}
+.exp-edit-hint[data-v-bfbd477c] {
+  min-width: 0;
+  margin-right: auto;
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1.3;
+}
+.exp-edit-actions[data-v-bfbd477c] {
+  display: flex;
+  flex: none;
+  gap: 5px;
+}
+.exp-edit-actions button[data-v-bfbd477c] {
+  min-height: 27px;
+  padding: 0 9px;
+  font-size: 10.5px;
+}
+@media (hover: none) {
+  .exp-item .exp-item-actions button[data-v-bfbd477c] {
+    opacity: 1;
+  }
 }
 .exp-empty[data-v-bfbd477c] {
   padding: 14px 8px;

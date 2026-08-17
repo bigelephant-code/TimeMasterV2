@@ -69,6 +69,7 @@ const {
   restoreExpenseCategory: restoreExpenseCategoryDefinition,
   summarizeExpenseEntries
 } = require("./expense-categories.js");
+const { updateExpenseEntry } = require("./expense-entries.js");
 const SMOKE_TEST_FLAG = "--timemaster-smoke-test";
 const isSmokeTest = process.argv.includes(SMOKE_TEST_FLAG);
 function taskHasTime(todo) {
@@ -1816,23 +1817,14 @@ const repo = {
   },
   updateExpense(id, patch = {}) {
     const entry = data.expenses.find((e) => e.id === id);
-    if (!entry) return null;
-    if (patch.cat !== void 0) {
-      const goal = data.goals.find((item) => item.id === entry.goalId && item.mode === "ledger");
-      const cat = normalizeExpenseCat(goal, patch.cat);
-      if (cat) entry.cat = cat;
-    }
-    if (patch.date !== void 0) {
-      const date = normalizeYmd(patch.date);
-      if (date) entry.date = date;
-    }
-    if (patch.amount !== void 0) {
-      const amount = round2(toNumber(patch.amount, entry.amount));
-      if (amount) entry.amount = amount;
-    }
-    if (patch.note !== void 0) entry.note = String(patch.note).slice(0, 60);
+    if (!entry) return { ok: false, reason: "这笔费用已不存在，请刷新后重试。" };
+    const goal = data.goals.find((item) => item.id === entry.goalId && item.mode === "ledger");
+    if (!goal) return { ok: false, reason: "找不到这笔费用所属的台账。" };
+    const result = updateExpenseEntry(data.expenses, id, patch);
+    if (!result.ok || !result.changed) return result;
+    goal.updatedAt = result.entry.updatedAt;
     scheduleFlush();
-    return entry;
+    return result;
   },
   removeExpense(id) {
     const before = data.expenses.length;
@@ -3482,7 +3474,7 @@ function registerIpc() {
   });
   handleTrusted("expense:update", (_e, id, patch) => {
     const r = repo.updateExpense(id, patch);
-    pushSnapshot();
+    if (r?.ok && r.changed) pushSnapshot();
     return r;
   });
   handleTrusted("expense:remove", (_e, id) => {
@@ -4329,6 +4321,53 @@ async function runPackagedSmokeTest(main, widget) {
       node_fs.mkdirSync(captureDir, { recursive: true });
       const overview = await main.webContents.capturePage(void 0, { stayHidden: true });
       node_fs.writeFileSync(node_path.join(captureDir, "expense-overview.png"), overview.toPNG());
+      const expenseEditorOpened = await main.webContents.executeJavaScript(`(() => {
+        const row = [...document.querySelectorAll('.exp-item')].find((item) => item.textContent.includes('打印耗材'));
+        const button = row?.querySelector('.exp-item-actions .edit');
+        button?.click();
+        return Boolean(button);
+      })()`);
+      if (!expenseEditorOpened) throw new Error("单笔费用修改入口未找到。");
+      await delay(180);
+      const expenseEditorState = await main.webContents.executeJavaScript(`(() => {
+        const editor = document.querySelector('.exp-item.editing .exp-edit');
+        return {
+          amount: editor?.querySelector('.exp-edit-amount')?.value || '',
+          note: editor?.querySelector('.exp-edit-note')?.value || '',
+          hint: editor?.querySelector('.exp-edit-hint')?.textContent || '',
+          save: editor?.querySelector('.exp-edit-actions .primary')?.textContent || ''
+        };
+      })()`);
+      if (expenseEditorState.amount !== "86.5" || expenseEditorState.note !== "打印耗材" || !expenseEditorState.hint.includes("分类、日期和登记时间保持不变") || !expenseEditorState.save.includes("保存修改")) {
+        throw new Error(`单笔费用修改界面状态错误：${JSON.stringify(expenseEditorState)}`);
+      }
+      await forceHiddenWindowRepaint(main);
+      const expenseEntryEdit = await main.webContents.capturePage(void 0, { stayHidden: true });
+      node_fs.writeFileSync(node_path.join(captureDir, "expense-entry-edit.png"), expenseEntryEdit.toPNG());
+      await main.webContents.executeJavaScript(`(() => {
+        const editor = document.querySelector('.exp-item.editing .exp-edit');
+        const amount = editor?.querySelector('.exp-edit-amount');
+        const note = editor?.querySelector('.exp-edit-note');
+        if (!amount || !note) return false;
+        amount.value = '99.8';
+        amount.dispatchEvent(new Event('input', { bubbles: true }));
+        note.value = '打印耗材（已核对）';
+        note.dispatchEvent(new Event('input', { bubbles: true }));
+        editor.querySelector('.exp-edit-actions .primary')?.click();
+        return true;
+      })()`);
+      await delay(260);
+      const expenseEntrySaved = await main.webContents.executeJavaScript(`(() => {
+        const row = [...document.querySelectorAll('.exp-item')].find((item) => item.textContent.includes('打印耗材（已核对）'));
+        return {
+          editorClosed: !document.querySelector('.exp-item.editing .exp-edit'),
+          amount: row?.querySelector('.amt')?.textContent || '',
+          edited: row?.querySelector('.at')?.classList.contains('edited') === true
+        };
+      })()`);
+      if (!expenseEntrySaved.editorClosed || !expenseEntrySaved.amount.includes("99.8") || !expenseEntrySaved.edited) {
+        throw new Error(`单笔费用修改保存状态错误：${JSON.stringify(expenseEntrySaved)}`);
+      }
       await main.webContents.executeJavaScript(`document.querySelector('.exp-cat-btn')?.click()`);
       await delay(250);
       const categoryDialogOpened = await main.webContents.executeJavaScript(`Boolean(document.querySelector('.cat-dlg'))`);

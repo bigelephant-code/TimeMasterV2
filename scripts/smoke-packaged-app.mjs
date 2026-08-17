@@ -45,7 +45,7 @@ try {
     throw new Error(`Packaged app version mismatch: expected ${expectedVersion}, received ${result.version}.`)
   }
   if (captureDir) {
-    for (const name of ['calendar.png', 'calendar-compact.png', 'calendar-month-rollovers.png', 'calendar-month-completions.png', 'calendar-rollover-history.png', 'todos.png', 'ai-task-coach.png', 'ai-day-plan.png', 'matrix.png', 'settings.png', 'settings-remote.png', 'settings-ai-coach.png', 'expense-overview.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-focus-active.png', 'widget-entry.png', 'widget-ledger.png']) {
+    for (const name of ['calendar.png', 'calendar-compact.png', 'calendar-month-rollovers.png', 'calendar-month-completions.png', 'calendar-rollover-history.png', 'todos.png', 'ai-task-coach.png', 'ai-day-plan.png', 'matrix.png', 'settings.png', 'settings-remote.png', 'settings-ai-coach.png', 'expense-overview.png', 'expense-entry-edit.png', 'expense-categories.png', 'expense-compact.png', 'expense-audit.png', 'widget-focus-active.png', 'widget-entry.png', 'widget-ledger.png']) {
       const imagePath = join(captureDir, name)
       if (!existsSync(imagePath) || statSync(imagePath).size < 1_000) {
         throw new Error(`Visual smoke capture is missing or empty: ${name}`)

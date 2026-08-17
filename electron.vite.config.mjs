@@ -14,6 +14,7 @@ export default defineConfig({
           'todo-rollovers': r('src/main/todo-rollovers.js'),
           'todo-completions': r('src/main/todo-completions.js'),
           'expense-categories': r('src/main/expense-categories.js'),
+          'expense-entries': r('src/main/expense-entries.js'),
           'remote-reminders': r('src/main/remote-reminders.js'),
           'gateway-direct-send': r('src/main/gateway-direct-send.js'),
           'ai-step-todos': r('src/main/ai-step-todos.js'),
